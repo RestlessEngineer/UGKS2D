@@ -230,14 +230,14 @@ namespace ugks
         // final residual
         res = sqrt(xsize * ysize * sum_res) / (sum_avg + DBL_EPSILON);
     }
-    
+
     void solver::set_geometry(const double &xlength, const double &ylength)
     {
         mesh.resize(ysize + 1, xsize + 1);
 
         // cell length and area
-        const double dx = xlength / (xsize /*- 1*/);
-        const double dy = ylength / (ysize /*- 1*/);
+        const double dx = xlength / (xsize - 1);
+        const double dy = ylength / (ysize - 1);
         const double area = dx * dy;
 
         for (int i = 0; i < ysize + 1; ++i)
@@ -274,7 +274,80 @@ namespace ugks
             }
     }
 
-   
+    void solver::set_geometry(const point &ld, const point &lu, const point &ru, const point &rd)
+    {
+
+        mesh.resize(ysize + 1, xsize + 1);
+
+        // create up wall
+        // x
+        Eigen::ArrayXd xupw(xsize + 1);
+        xupw.setLinSpaced(lu.x, ru.x);
+        // y
+        Eigen::ArrayXd yupw(xsize + 1);
+        yupw.setLinSpaced(lu.y, ru.y);
+
+        // create down wall
+        // x
+        Eigen::ArrayXd xdownw(xsize + 1);
+        xdownw.setLinSpaced(ld.x, rd.x);
+        // y
+        Eigen::ArrayXd ydownw(xsize + 1);
+        ydownw.setLinSpaced(ld.y, rd.y);
+
+        // fill mesh
+        for (size_t j = 0; j < xsize + 1; ++j)
+        {
+            double dx = (xupw[j] - xdownw[j]) / ysize;
+            double dy = (yupw[j] - ydownw[j]) / ysize;
+
+            for (size_t i = 0; i < ysize + 1; ++i)
+            {
+                mesh(i, j).x = xdownw[j] + dx * i;
+                mesh(i, j).y = ydownw[j] + dy * i;
+            }
+        }
+
+        auto leng = [](point p1, point p2) -> double
+        {
+            return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p2.y - p1.y, 2));
+        };
+
+        // TODO: sure length dir dx dy
+        for (size_t i = 0; i < ysize; ++i)
+            for (size_t j = 0; j < xsize; ++j)
+            { // cell center
+                core(i, j).y = (mesh(i,j).y + mesh(i+1,j+1).y + mesh(i+1,j).y + mesh(i,j+1).y) * 0.25;
+                core(i, j).x = (mesh(i,j).x + mesh(i+1,j+1).x + mesh(i+1,j).x + mesh(i,j+1).x) * 0.25;
+                core(i, j).length[0] = leng(mesh(i+1,j), mesh(i+1,j+1)); // dy
+                core(i, j).length[1] = leng(mesh(i,j+1), mesh(i+1,j+1)); // dx
+
+                core(i, j).area = 0.5 * ((mesh(i+1,j+1).x - mesh(i,j).x) * (mesh(i+1,j).y - mesh(i,j+1).y) -
+                                         (mesh(i+1,j).x - mesh(i,j+1).x) * (mesh(i+1,j+1).y - mesh(i,j).y));
+                //TODO: add throw here
+            }
+
+        // TODO: sure dy,dx
+        for (size_t i = 0; i < ysize; ++i)
+            for (size_t j = 0; j < xsize + 1; ++j)
+            {
+                // vertical interface
+                vface(i, j).length = leng(mesh(i,j), mesh(i,j+1)); // dy
+                vface(i, j).nx = (mesh(i,j+1).y - mesh(i,j).y) / vface(i, j).length;
+                vface(i, j).ny = -(mesh(i,j+1).x - mesh(i,j).x) / vface(i, j).length;
+            }
+
+        // TODO: sure dy,dx
+        for (size_t i = 0; i < ysize + 1; ++i)
+            for (size_t j = 0; j < xsize; ++j)
+            {
+                // horizontal interface
+                hface(i, j).length = leng(mesh(i,j), mesh(i+1,j)); // dx;
+                hface(i, j).nx = -(mesh(i+1,j).y - mesh(i,j).y) / hface(i, j).length;
+                hface(i, j).ny = (mesh(i+1,j).x - mesh(i,j).x) / hface(i, j).length;
+            }
+    }
+
     void solver::set_flow_field(const Eigen::Array4d &init_gas)
     {
 

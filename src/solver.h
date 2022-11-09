@@ -134,9 +134,15 @@ namespace ugks
         void set_boundary(const Eigen::Array4d bound, boundary type);
 
         /// @brief initialize the mesh
-        /// @param xnum,ynum       :number of cells in x and y direction
         /// @param xlength,ylength :domain length in x and y direction
         void set_geometry(const double &xlength, const double &ylength);
+
+        /// @brief initialize the mesh
+        /// @param left_down left down point of the rectangular
+        /// @param left_up left up point of the rectangular
+        /// @param right_up  right up point of the rectangular
+        /// @param right_down  right down point of the rectangular
+        void set_geometry(const point &left_down, const point &left_up, const point &right_up, const point &right_down);
 
         /// @brief set the initial gas condition
         /// @param init_gas initial condition
