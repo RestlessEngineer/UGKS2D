@@ -185,7 +185,7 @@ namespace ugks
 
         /// @brief calculation of the slope of distribution function
         void interpolation();
-        
+
         /// @brief calculate the flux across the interfaces
         void flux_calculation();
 
@@ -205,6 +205,10 @@ namespace ugks
         /// @param cell_R the right cell
         /// @param idx    the index indicating i or j direction
         void interp_inner(cell &cell_L, cell &cell_N, cell &cell_R, direction dir);
+
+        /// @brief calculate dx dy slopes by solving linear least square system
+        /// @param core central cell 
+        void least_square_solver(cell& core);
 
         /// @brief calculate flux of boundary interface, assuming left wall
         /// @param bc   boundary condition

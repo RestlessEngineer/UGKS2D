@@ -31,7 +31,7 @@ namespace ugks
     solver::solver(const size_t &rows, const size_t &cols) : ysize(rows), xsize(cols)
     {
         assert(rows > 2 && cols > 2);
-        
+
         core.resize(ysize, xsize);      // cell centers
         vface.resize(ysize, xsize + 1); // vertical cell interface
         hface.resize(ysize + 1, xsize);
@@ -102,8 +102,8 @@ namespace ugks
     }
 
     void solver::associate_neighbors(){
-         // associate neighbors
-        //  boundaries
+        // associate neighbors
+        // boundaries
         // DOWN and UP
         for (int j = 1; j < xsize - 1; ++j)
         {
@@ -170,32 +170,45 @@ namespace ugks
 
     void solver::interpolation()
     {
-
         // no interpolation for first order
         if (siorder == precision::FIRST_ORDER)
             return;
 
-        // i direction
-        for (int j = 0; j < xsize; ++j)
+        for (size_t i = 0; i < ysize; ++i)
+            for (size_t j = 0; j < xsize; ++j)
+                // solve LLS
+                least_square_solver(core(i, j));
+    }
+
+    void solver::least_square_solver(cell &core)
+    {
+        Eigen::ArrayXXd A11(ysize, xsize), A12(ysize, xsize);
+        Eigen::ArrayXXd A21(ysize, xsize), A22(ysize, xsize);
+
+        Eigen::ArrayXXd Bh1(ysize, xsize), Bh2(ysize, xsize);
+        Eigen::ArrayXXd Bb1(ysize, xsize), Bb2(ysize, xsize);
+
+        for (auto &neighbor : core.neighbors)
         {
-            interp_boundary(core(0, j), core(0, j), core(1, j), direction::IDIR);
-            interp_boundary(core(ysize - 1, j), core(ysize - 2, j), core(ysize - 1, j), direction::IDIR);
+            A11 += std::pow(neighbor->x - core.x, 2);
+            A12 += (neighbor->x - core.x) * (neighbor->y - core.y);
+            A22 += std::pow(neighbor->y - core.y, 2);
+            Bh1 += (neighbor->x - core.x) * (neighbor->h - core.h);
+            Bh2 += (neighbor->y - core.y) * (neighbor->h - core.h);
+            Bb1 += (neighbor->x - core.x) * (neighbor->b - core.h);
+            Bb2 += (neighbor->y - core.y) * (neighbor->b - core.h);
         }
 
-        for (int i = 1; i < ysize - 1; ++i)
-            for (int j = 0; j < xsize; ++j)
-                interp_inner(core(i - 1, j), core(i, j), core(i + 1, j), direction::IDIR);
+        A21 = A12;
 
-        // j direction
-        for (int i = 0; i < ysize; ++i)
-        {
-            interp_boundary(core(i, 0), core(i, 0), core(i, 1), direction::JDIR);
-            interp_boundary(core(i, xsize - 1), core(i, xsize - 2), core(i, xsize - 1), direction::JDIR);
-        }
+        auto det = A11 * A22 - A12 * A21;
 
-        for (int i = 0; i < ysize; ++i)
-            for (int j = 1; j < xsize - 1; ++j)
-                interp_inner(core(i, j - 1), core(i, j), core(i, j + 1), direction::JDIR);
+        // DBL_EPSILON to avoid 0
+        core.sh[DX] = (Bh1 * A22 - Bh2 * A12) / (det + DBL_EPSILON);
+        core.sh[DY] = (Bh2 * A11 - Bh1 * A21) / (det + DBL_EPSILON);
+
+        core.sb[DX] = (Bb1 * A22 - Bb2 * A12) / (det + DBL_EPSILON);
+        core.sb[DY] = (Bb2 * A11 - Bb1 * A21) / (det + DBL_EPSILON);
     }
 
     void solver::interp_boundary(cell &cell_N, cell &cell_L, cell &cell_R, direction dir)
