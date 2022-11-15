@@ -12,7 +12,7 @@ namespace ugks
 
         ///@brief obtain discretized Maxwellian distribution
         ///@param h,b   distribution function
-        ///@param vn,vt normal and tangential velosity
+        ///@param vn,vt normal and tangential velocity
         ///@param prim  primary variables
         void maxwell_distribution(Eigen::ArrayXXd &h, Eigen::ArrayXXd &b,
                                   const Eigen::ArrayXXd &vn,
@@ -21,7 +21,7 @@ namespace ugks
         ///@brief calculate the Shakhov part H^+, B^+
         ///@param H_plus,B_plus Shakhov part
         ///@param H,B           Maxwellian distribution function
-        ///@param vn,vt         normal and tangential velosity
+        ///@param vn,vt         normal and tangential velocity
         ///@param qf            heat flux
         ///@param prim          primary variables
         void shakhov_part(Eigen::ArrayXXd &H_plus, Eigen::ArrayXXd &B_plus,
@@ -69,7 +69,7 @@ namespace ugks
 
         ///@brief get heat flux
         ///@param h,b   distribution function
-        ///@param vn,vt normal and tangential velosity
+        ///@param vn,vt normal and tangential velocity
         ///@param prim  primary variables
         ///@return heat flux in normal and tangential direction
         std::array<double, 2> get_heat_flux(const Eigen::ArrayXXd &h, const Eigen::ArrayXXd &b,
@@ -80,7 +80,7 @@ namespace ugks
 
         ///@brief get temperature
         ///@param h,b   distribution function
-        ///@param vn,vt normal and tangential velosity
+        ///@param vn,vt normal and tangential velocity
         ///@param weight weights for integration
         ///@param prim  primary variables
         ///@return temperature
@@ -98,10 +98,10 @@ namespace ugks
 
         ///@brief get the nondimensionalized viscosity coefficient
         ///@param integ type of integration
-        ///@param param parameters for filling velosity space
-        ///@return uspace, vspace, weights for integration velosity space
+        ///@param param parameters for filling velocity space
+        ///@return uspace, vspace, weights for integration velocity space
         std::tuple<Eigen::ArrayXXd, Eigen::ArrayXXd, Eigen::ArrayXXd, double, double>  
-        get_velosity_space(const vel_space_param& param, integration integ);
+        get_velocity_space(const vel_space_param& param, integration integ);
     }
 
 }

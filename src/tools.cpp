@@ -123,12 +123,12 @@ namespace ugks
             return heat_flux;
         }
 
-        /// @brief set discrete velosity space using Newton�Cotes formulas
-        /// @param num_u,num_v number of velosity points
-        /// @param min_u,min_v smallest discrete velosity
-        /// @param max_u,max_v largest discrete velosity
+        /// @brief set discrete velocity space using Newton�Cotes formulas
+        /// @param num_u,num_v number of velocity points
+        /// @param min_u,min_v smallest discrete velocity
+        /// @param max_u,max_v largest discrete velocity
         std::tuple<Eigen::ArrayXXd, Eigen::ArrayXXd, Eigen::ArrayXXd, double, double>
-        init_velosity_newton(const int &num_u, const double &min_u,
+        init_velocity_newton(const int &num_u, const double &min_u,
                              const double &max_u, const int &num_v, const double &min_v, const double &max_v)
         {
 
@@ -140,7 +140,7 @@ namespace ugks
             Eigen::ArrayXXd vspace(vsize, usize);
             Eigen::ArrayXXd weight(vsize, usize);
 
-            // spacing in u and v velosity space
+            // spacing in u and v velocity space
             const double du = (max_u - min_u) / (usize - 1);
             const double dv = (max_v - min_v) / (vsize - 1);
 
@@ -159,7 +159,7 @@ namespace ugks
                     return 0; //! it has to be imposible
             };
 
-            // velosity space
+            // velocity space
             for (int i = 0; i < vsize; ++i)
                 for (int j = 0; j < usize; ++j)
                 {
@@ -168,20 +168,20 @@ namespace ugks
                     weight(i, j) = (newton_coeff(i, vsize) * du) * (newton_coeff(j, usize) * dv);
                 }
 
-            // maximum micro velosity
+            // maximum micro velocity
             double umax = max_u;
             double vmax = max_v;
             return {uspace, vspace, weight, umax, vmax};
         }
 
-        /// @brief set discrete velosity space using Gaussian-Hermite type quadrature
-        /// @param umid,vmid middle value of the velosity space, zero or macroscopic velosity
-        std::tuple<Eigen::ArrayXXd, Eigen::ArrayXXd, Eigen::ArrayXXd, double, double> init_velosity_gauss(const int &umid, const int &vmid)
+        /// @brief set discrete velocity space using Gaussian-Hermite type quadrature
+        /// @param umid,vmid middle value of the velocity space, zero or macroscopic velocity
+        std::tuple<Eigen::ArrayXXd, Eigen::ArrayXXd, Eigen::ArrayXXd, double, double> init_velocity_gauss(const int &umid, const int &vmid)
         {
 
-            Eigen::Array<double, 28, 1> vcoords, weights; // velosity points and weight for 28 points (symmetry)
+            Eigen::Array<double, 28, 1> vcoords, weights; // velocity points and weight for 28 points (symmetry)
 
-            // set velosity points and weight
+            // set velocity points and weight
             vcoords = {-0.5392407922630e+01, -0.4628038787602e+01, -0.3997895360339e+01, -0.3438309154336e+01,
                        -0.2926155234545e+01, -0.2450765117455e+01, -0.2007226518418e+01, -0.1594180474269e+01,
                        -0.1213086106429e+01, -0.8681075880846e+00, -0.5662379126244e+00, -0.3172834649517e+00,
@@ -198,7 +198,7 @@ namespace ugks
                        0.3130804321888e-01, 0.7620883072174e-02, 0.1130613659204e-02, 0.9416408715712e-04,
                        0.3916031412192e-05, 0.6744233894962e-07, 0.3391774320172e-09, 0.2070921821819e-12};
 
-            // set grid number for u-velosity and v-velosity
+            // set grid number for u-velocity and v-velocity
             const auto usize = 28;
             const auto vsize = 28;
 
@@ -206,7 +206,7 @@ namespace ugks
             Eigen::ArrayXXd vspace(vsize, usize);
             Eigen::ArrayXXd weight(vsize, usize);
 
-            // set velosity space and weight
+            // set velocity space and weight
             for (int i = 0; i < vsize; ++i)
                 for (int j = 0; j < usize; ++j)
                 {
@@ -216,7 +216,7 @@ namespace ugks
                                    (weights[j] * std::exp(std::pow(vcoords[j], 2)));
                 }
 
-            // determine maximum micro velosity
+            // determine maximum micro velocity
             double umax = vcoords.maxCoeff() + umid;
             double vmax = vcoords.maxCoeff() + vmid;
 
@@ -224,16 +224,16 @@ namespace ugks
         }
 
         std::tuple<Eigen::ArrayXXd, Eigen::ArrayXXd, Eigen::ArrayXXd, double, double>
-        get_velosity_space(const vel_space_param& param, integration integ)
+        get_velocity_space(const vel_space_param& param, integration integ)
         {
             switch (integ)
             {
             case integration::NEWTON_COTES:
-                return init_velosity_newton(param.num_u, param.min_u, param.max_u, param.num_v, param.min_v, param.max_v);
+                return init_velocity_newton(param.num_u, param.min_u, param.max_u, param.num_v, param.min_v, param.max_v);
             case integration::GAUSS:
-                return init_velosity_gauss((param.min_u + param.max_u)*0.5,(param.min_v + param.max_v)*0.5);
+                return init_velocity_gauss((param.min_u + param.max_u)*0.5,(param.min_v + param.max_v)*0.5);
             default:
-                return init_velosity_gauss((param.min_u + param.max_u)*0.5,(param.min_v + param.max_v)*0.5);
+                return init_velocity_gauss((param.min_u + param.max_u)*0.5,(param.min_v + param.max_v)*0.5);
             }
         }
     }

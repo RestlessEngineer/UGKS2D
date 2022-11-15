@@ -30,9 +30,13 @@ namespace ugks
 
     solver::solver(const size_t &rows, const size_t &cols) : ysize(rows), xsize(cols)
     {
+        assert(rows > 2 && cols > 2);
+        
         core.resize(ysize, xsize);      // cell centers
         vface.resize(ysize, xsize + 1); // vertical cell interface
         hface.resize(ysize + 1, xsize);
+
+        associate_neighbors();
     }
 
     solver::solver(const size_t &rows, const size_t &cols, const physic_val &phys) : solver(rows, cols)
@@ -82,7 +86,7 @@ namespace ugks
                 // sound speed
                 sos = tools::get_sos(prim, gamma);
 
-                // maximum velosity
+                // maximum velocity
                 prim[1] = std::max(umax, std::abs(prim[1])) + sos;
                 prim[2] = std::max(vmax, std::abs(prim[2])) + sos;
 
@@ -95,6 +99,73 @@ namespace ugks
 
         // time step
         dt = CFL / tmax;
+    }
+
+    void solver::associate_neighbors(){
+         // associate neighbors
+        //  boundaries
+        // DOWN and UP
+        for (int j = 1; j < xsize - 1; ++j)
+        {
+            // DOWN
+            core(0, j).neighbors.resize(3);
+            core(0, j).neighbors.emplace_back(&core(0, j - 1));
+            core(0, j).neighbors.emplace_back(&core(1, j));
+            core(0, j).neighbors.emplace_back(&core(0, j + 1));
+
+            // UP
+            core(ysize - 1, j).neighbors.resize(3);
+            core(ysize - 1, j).neighbors.emplace_back(&core(ysize - 1, j - 1));
+            core(ysize - 1, j).neighbors.emplace_back(&core(ysize - 2, j));
+            core(ysize - 1, j).neighbors.emplace_back(&core(ysize - 1, j + 1));
+        }
+
+        // LEFT and RIGHT
+        for (int i = 1; i < ysize - 1; ++i)
+        {
+            // LEFT
+            core(i, 0).neighbors.resize(3);
+            core(i, 0).neighbors.emplace_back(&core(i - 1, 0));
+            core(i, 0).neighbors.emplace_back(&core(i, 1));
+            core(i, 0).neighbors.emplace_back(&core(i + 1, 0));
+
+            // RIGHT
+            core(i, xsize - 1).neighbors.resize(3);
+            core(i, xsize - 1).neighbors.emplace_back(&core(i - 1, xsize - 1));
+            core(i, xsize - 1).neighbors.emplace_back(&core(i, xsize - 2));
+            core(i, xsize - 1).neighbors.emplace_back(&core(i + 1, xsize - 1));
+        }
+
+        //core
+        for (int i = 1; i < ysize - 1; ++i)
+            for (int j = 1; j < xsize - 1; ++j){
+                core(i,j).neighbors.resize(4);
+                core(i, j).neighbors.emplace_back(&core(i - 1, j));
+                core(i, j).neighbors.emplace_back(&core(i + 1, j));
+                core(i, j).neighbors.emplace_back(&core(i, j + 1));
+                core(i, j).neighbors.emplace_back(&core(i, j - 1));
+            }
+
+        //corners
+        //LEFT DOWN
+        core(0, 0).neighbors.resize(2);
+        core(0, 0).neighbors.emplace_back(&core(1, 0));
+        core(0, 0).neighbors.emplace_back(&core(0, 1));    
+
+        //LEFT UP
+        core(ysize-1, 0).neighbors.resize(2);
+        core(ysize-1, 0).neighbors.emplace_back(&core(ysize - 2, 0));
+        core(ysize-1, 0).neighbors.emplace_back(&core(ysize - 1, 1));
+
+        //RIGHT UP
+        core(ysize-1, xsize-1).neighbors.resize(2);
+        core(ysize-1, xsize-1).neighbors.emplace_back(&core(ysize - 2, xsize-1));
+        core(ysize-1, xsize-1).neighbors.emplace_back(&core(ysize - 1, xsize-2));
+
+        //RIGHT DOWN
+        core(ysize-1, 0).neighbors.resize(2);
+        core(ysize-1, 0).neighbors.emplace_back(&core(1, xsize-1));
+        core(ysize-1, 0).neighbors.emplace_back(&core(0, xsize-2));
     }
 
     void solver::interpolation()
@@ -236,8 +307,8 @@ namespace ugks
         mesh.resize(ysize + 1, xsize + 1);
 
         // cell length and area
-        const double dx = xlength / (xsize - 1);
-        const double dy = ylength / (ysize - 1);
+        const double dx = xlength / xsize;
+        const double dy = ylength / ysize;
         const double area = dx * dy;
 
         for (int i = 0; i < ysize + 1; ++i)
@@ -272,6 +343,7 @@ namespace ugks
                 hface(i, j).nx = 0.0;
                 hface(i, j).ny = 1.0;
             }
+        
     }
 
     void solver::set_geometry(const point &ld, const point &lu, const point &ru, const point &rd)
@@ -373,11 +445,11 @@ namespace ugks
             }
     }
 
-    void solver::set_velosity_space(const vel_space_param& param, integration integ)
+    void solver::set_velocity_space(const vel_space_param& param, integration integ)
     {
         // TODO: add ifdef c++17 block
-        //!auto [uspace, vspace, weight, umax, vmax] = tools::get_velosity_space(integration::GAUSS);
-        auto vel_spc = tools::get_velosity_space(param, integ);
+        //!auto [uspace, vspace, weight, umax, vmax] = tools::get_velocity_space(integration::GAUSS);
+        auto vel_spc = tools::get_velocity_space(param, integ);
 
         uspace = std::get<0>(vel_spc);
         vspace = std::get<1>(vel_spc);
@@ -389,10 +461,10 @@ namespace ugks
         usize = uspace.cols();
         vsize = uspace.rows();
 
-        allocation_velosity_space();
+        allocation_velocity_space();
     }
 
-    void solver::allocation_velosity_space()
+    void solver::allocation_velocity_space()
     {
 
         for (int i = 0; i < ysize; ++i)
@@ -486,13 +558,13 @@ namespace ugks
     void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face,
                                     cell cell, direction dir, int order)
     {
-        static Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
+        static Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velocity
         static Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
         static Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
         static Eigen::ArrayXXd delta(vsize, usize);                                // Heaviside step function
         Eigen::Array4d prim;                                                                // boundary condition in local frame
 
-        // convert the micro velosity to local frame
+        // convert the micro velocity to local frame
         vn = uspace * face.nx + vspace * face.ny;
         vt = vspace * face.nx - uspace * face.ny;
         
@@ -559,7 +631,7 @@ namespace ugks
                                Eigen::Array<double, MNUM, 1> &Mu_L, Eigen::Array<double, MNUM, 1> &Mu_R)
     {
 
-        // moments of normal velosity
+        // moments of normal velocity
         Mu_L[0] = 0.5 * erfc(-sqrt(prim[3]) * prim[1]);
         Mu_L[1] = prim[1] * Mu_L[0] + 0.5 * exp(-prim[3] * std::pow(prim[1], 2)) / sqrt(M_PI * prim[3]);
         Mu_R[0] = 0.5 * erfc(sqrt(prim[3]) * prim[1]);
@@ -573,7 +645,7 @@ namespace ugks
 
         Mu = Mu_L + Mu_R;
 
-        // moments of tangential velosity
+        // moments of tangential velocity
         Mv[0] = 1.0;
         Mv[1] = prim[2];
 
@@ -622,7 +694,7 @@ namespace ugks
     void solver::calc_flux(cell &cell_L, cell_interface &face, cell &cell_R, direction dir)
     {
 
-        static Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);         // normal and tangential micro velosity
+        static Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);         // normal and tangential micro velocity
         static Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);           // distribution function at the interface
         static Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize);         // Maxwellian distribution function
         static Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part of the equilibrium distribution
@@ -641,7 +713,7 @@ namespace ugks
         double tau;                                // collision time
         Eigen::Array<double, 5, 1> Mt;             // some time integration terms
 
-        // convert the micro velosity to local frame
+        // convert the micro velocity to local frame
         vn = uspace * face.nx + vspace * face.ny;
         vt = vspace * face.nx - uspace * face.ny;
 

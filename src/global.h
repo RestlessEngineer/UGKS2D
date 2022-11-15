@@ -2,6 +2,7 @@
 #define GLOBAL_VARIABLES_H
 
 #include <Eigen/Dense>
+#include <vector>
 
 namespace ugks
 {
@@ -35,16 +36,18 @@ namespace ugks
         JDIR = 1, // j direction, along X
         XDIR = IDIR,
         YDIR = JDIR,
+        DX = IDIR,
+        DY = JDIR
     };
 
-    /// @brief integration way for velosity space
+    /// @brief integration way for velocity space
     enum class integration
     {
         NEWTON_COTES,
         GAUSS
     };
 
-    /// @brief aulternative indexes for simple reading
+    /// @brief alternative indexes for simple reading
     enum flow
     {
         RHO,   // density
@@ -59,12 +62,12 @@ namespace ugks
         double x, y; // coordinates
     };
 
-    /// @brief velosity space parameters
+    /// @brief velocity space parameters
     struct vel_space_param
     {
-        size_t num_u{0}, num_v{0};   // number of velosity points
-        double min_u{-1}, min_v{-1}; // smallest discrete velosity
-        double max_u{1}, max_v{1};   // largest discrete velosity
+        size_t num_u{0}, num_v{0};   // number of velocity points
+        double min_u{-1}, min_v{-1}; // smallest discrete velocity
+        double max_u{1}, max_v{1};   // largest discrete velocity
     };
 
     /// @brief core of cell
@@ -76,6 +79,7 @@ namespace ugks
         // flow field
         Eigen::Array4d w = {};                 // density, x-momentum, y-momentum, total energy
         Eigen::ArrayXXd h, b;                  // distribution function
+        std::vector<const cell*> neighbors;
         std::array<Eigen::ArrayXXd, 2> sh, sb; // slope of distribution function in i and j direction
     };
 

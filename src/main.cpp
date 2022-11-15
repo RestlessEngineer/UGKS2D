@@ -28,27 +28,27 @@ int main(int argc, char *argv[]){
     //set geometry area. box 1 to 1
     ugks_solver.set_geometry(1.0, 1.0);
     
-    //set velosity space param
+    //set velocity space param
     ugks::vel_space_param param;
-    // largest discrete velosity
+    // largest discrete velocity
     param.max_u = 3;
     param.max_v = 3;
-    // smallest discrete velosity
+    // smallest discrete velocity
     param.min_u = -3;
     param.min_v = -3;
-    // number of velosity points
+    // number of velocity points
     param.num_u = 25; 
     param.num_v = 25;
 
-    ugks_solver.set_velosity_space(param, ugks::integration::NEWTON_COTES);
+    ugks_solver.set_velocity_space(param, ugks::integration::NEWTON_COTES);
 
-    // set boundary condition (density,u-velosity,v-velosity,lambda=1/temperature)
+    // set boundary condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_boundary({1.0, 0.0, 0.0, 1.0}, ugks::boundary::LEFT);
     ugks_solver.set_boundary({1.0, 0.0, 0.0, 1.0}, ugks::boundary::RIGHT);
     ugks_solver.set_boundary({1.0, 0.15, 0.0, 1.0}, ugks::boundary::UP); 
     ugks_solver.set_boundary({1.0, 0.0, 0.0, 1.0}, ugks::boundary::DOWN);
 
-    // initial condition (density,u-velosity,v-velosity,lambda=1/temperature)
+    // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_flow_field({1.0, 0.0, 0.0, 1.0});
 
     while( true ){

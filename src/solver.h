@@ -75,8 +75,8 @@ namespace ugks
 
 
         //* fluid space
-        static const unsigned int MNUM = 7; // number of normal velosity moments
-        static const unsigned int MTUM = 5; // number of tangential velosity moments
+        static const unsigned int MNUM = 7; // number of normal velocity moments
+        static const unsigned int MTUM = 5; // number of tangential velocity moments
 
         Eigen::Array<point, -1, -1> mesh;                  // mesh (node coordinates)
         Eigen::Array<cell, -1, -1> core;                   // cell centers
@@ -84,11 +84,11 @@ namespace ugks
 
         Eigen::Array4d bc_L, bc_R, bc_U, bc_D; // boundary conditions at LEFT, RIGHT, UP and DOWN boundary
 
-        //* velosity space
-        size_t usize = 0, vsize = 0;    // number of velosity points for u and v
-        double umax, vmax;              // maximum micro velosity
-        Eigen::ArrayXXd uspace, vspace; // u and v discrete velosity space
-        Eigen::ArrayXXd weight;         // weight at velosity u_k and v_l
+        //* velocity space
+        size_t usize = 0, vsize = 0;    // number of velocity points for u and v
+        double umax, vmax;              // maximum micro velocity
+        Eigen::ArrayXXd uspace, vspace; // u and v discrete velocity space
+        Eigen::ArrayXXd weight;         // weight at velocity u_k and v_l
 
     public:
         /// @brief constructor ugks solver
@@ -129,7 +129,7 @@ namespace ugks
                const size_t &rows, const size_t &cols);
 
         /// @brief set boundary condition
-        /// @param bound array with boundary values (density,u-velosity,v-velosity,lambda)
+        /// @param bound array with boundary values (density,u-velocity,v-velocity,lambda)
         /// @param type what is the boundary (LEFT, RIGHT, UP, DOWN)
         void set_boundary(const Eigen::Array4d bound, boundary type);
 
@@ -148,10 +148,10 @@ namespace ugks
         /// @param init_gas initial condition
         void set_flow_field(const Eigen::Array4d &init_gas);
 
-        /// @brief initialize velosity space 
+        /// @brief initialize velocity space 
         /// @param param parameters for filling
         /// @param integ integration way (Newton-Cotes or Gauss)
-        void set_velosity_space(const vel_space_param& param, integration integ = integration::GAUSS);
+        void set_velocity_space(const vel_space_param& param, integration integ = integration::GAUSS);
 
         /// @brief solving for one time step
         /// @return simulation parameters
@@ -174,8 +174,11 @@ namespace ugks
 
     private:
         
+        /// @brief make acquaintances for neighbors
+        void associate_neighbors();
+
         /// @brief allocation global arrays
-        void allocation_velosity_space();
+        void allocation_velocity_space();
 
         /// @brief calculation of the time step
         void timestep();
@@ -217,7 +220,7 @@ namespace ugks
         /// @return slope of Maxwellian distribution
         [[nodiscard]] Eigen::Array4d micro_slope(const Eigen::Array4d &prim, const Eigen::Array4d &sw);
 
-        /// @brief calculate moments of velosity
+        /// @brief calculate moments of velocity
         /// @param prim      primary variables
         /// @param Mu,Mv     <u^n>,<v^m>
         /// @param Mxi       <\xi^l>
