@@ -42,15 +42,15 @@ namespace ugks
 
         ///@brief convert macro variables from local frame to global
         ///@param w     macro variables in local frame
-        ///@param nx,ny directional cosine
+        ///@param cosa,sina directional cosine
         ///@return macro variables in global frame
-        Eigen::Array4d frame_global(const Eigen::Array4d &w, const double &nx, const double &ny);
+        Eigen::Array4d frame_global(const Eigen::Array4d &w, const double &cosa, const double &sina);
 
         ///@brief convert macro variables from global frame to local
         ///@param w      macro variables in global frame
-        ///@param nx,ny  directional cosine
+        ///@param cosa,sina  directional cosine
         ///@return macro variables in local frame
-        Eigen::Array4d frame_local(const Eigen::Array4d &w, const double &nx, const double &ny);
+        Eigen::Array4d frame_local(const Eigen::Array4d &w, const double &cosa, const double &sina);
 
         ///@brief obtain ratio of specific heat
         ///@param DOF internal degree of freedom

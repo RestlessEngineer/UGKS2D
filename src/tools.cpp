@@ -52,26 +52,26 @@ namespace ugks
             return get_prim;
         }
 
-        Eigen::Array4d frame_global(const Eigen::Array4d &w, const double &nx, const double &ny)
+        Eigen::Array4d frame_global(const Eigen::Array4d &w, const double &cosa, const double &sina)
         {
             Eigen::Array4d global_frame;
 
             global_frame[0] = w[0];
-            global_frame[1] = w[1] * nx - w[2] * ny;
-            global_frame[2] = w[1] * ny + w[2] * nx;
+            global_frame[1] = w[1] * cosa - w[2] * sina;
+            global_frame[2] = w[1] * sina + w[2] * cosa;
             global_frame[3] = w[3];
 
             return global_frame;
         }
 
-        Eigen::Array4d frame_local(const Eigen::Array4d &w, const double &nx, const double &ny)
+        Eigen::Array4d frame_local(const Eigen::Array4d &w, const double &cosa, const double &sina)
         {
 
             Eigen::Array4d local_frame;
 
             local_frame[0] = w[0];
-            local_frame[1] = w[1] * nx + w[2] * ny;
-            local_frame[2] = w[2] * nx - w[1] * ny;
+            local_frame[1] = w[1] * cosa + w[2] * sina;
+            local_frame[2] = w[2] * cosa - w[1] * sina;
             local_frame[3] = w[3];
 
             return local_frame;

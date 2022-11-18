@@ -74,8 +74,7 @@ namespace ugks
     struct cell
     {
         double x, y;                       // cell center coordinates
-        std::array<double, 2> length = {}; // length in i and j direction
-        double area;                       // cell area
+         double area;                       // cell area
         // flow field
         Eigen::Array4d w = {};                 // density, x-momentum, y-momentum, total energy
         Eigen::ArrayXXd h, b;                  // distribution function
@@ -86,8 +85,8 @@ namespace ugks
     /// @brief cell interface
     struct cell_interface
     {
-        double length; // length of cell interface
-        double nx, ny; // normals
+        double length; // length of cell interface 
+        double cosa, sina, p; // normals and perpendicular for normal equation of a line x*cosa + y*sina = p
         // flow flux
         Eigen::Array4d flux = {};       // mass flux, x and y momentum flux, energy flux
         Eigen::ArrayXXd flux_h, flux_b; // flux of distribution function

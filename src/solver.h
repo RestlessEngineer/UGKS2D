@@ -192,20 +192,6 @@ namespace ugks
         /// @brief updating of the cell averaged values
         void update();
 
-        /// @brief one-sided interpolation of the boundary cell
-        /// @param cell_N the target boundary cell
-        /// @param cell_L the left cell
-        /// @param cell_R the right cell
-        /// @param idx    the index indicating i or j direction
-        void interp_boundary(cell &cell_N, cell &cell_L, cell &cell_R, direction dir);
-
-        /// @brief interpolation of the inner cells
-        /// @param cell_L the left cell
-        /// @param cell_N the target cell
-        /// @param cell_R the right cell
-        /// @param idx    the index indicating i or j direction
-        void interp_inner(cell &cell_L, cell &cell_N, cell &cell_R, direction dir);
-
         /// @brief calculate dx dy slopes by solving linear least square system
         /// @param core central cell 
         void least_square_solver(cell& core);

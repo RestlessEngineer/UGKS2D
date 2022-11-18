@@ -91,10 +91,9 @@ namespace ugks
                 prim[2] = std::max(vmax, std::abs(prim[2])) + sos;
 
                 // maximum 1/dt allowed
+                //TODO: make this better
                 tmax = std::max(tmax,
-                                (core(i, j).length[direction::JDIR] * prim[1] +
-                                 core(i, j).length[direction::IDIR] * prim[2]) /
-                                    core(i, j).area);
+                                (prim[1] + prim[2]) / std::sqrt(core(i, j).area));
             }
 
         // time step
@@ -108,64 +107,67 @@ namespace ugks
         for (int j = 1; j < xsize - 1; ++j)
         {
             // DOWN
-            core(0, j).neighbors.resize(3);
-            core(0, j).neighbors.emplace_back(&core(0, j - 1));
-            core(0, j).neighbors.emplace_back(&core(1, j));
-            core(0, j).neighbors.emplace_back(&core(0, j + 1));
+            core(0, j).neighbors = {nullptr, nullptr, nullptr};
+            core(0, j).neighbors[0] = &core(0, j - 1);
+            core(0, j).neighbors[1] = &core(1, j);
+            core(0, j).neighbors[2] = &core(0, j + 1);
 
             // UP
-            core(ysize - 1, j).neighbors.resize(3);
-            core(ysize - 1, j).neighbors.emplace_back(&core(ysize - 1, j - 1));
-            core(ysize - 1, j).neighbors.emplace_back(&core(ysize - 2, j));
-            core(ysize - 1, j).neighbors.emplace_back(&core(ysize - 1, j + 1));
+            core(ysize - 1, j).neighbors = {nullptr, nullptr, nullptr};
+            core(ysize - 1, j).neighbors[0] = &core(ysize - 1, j - 1);
+            core(ysize - 1, j).neighbors[1] = &core(ysize - 2, j);
+            core(ysize - 1, j).neighbors[2] = &core(ysize - 1, j + 1);
         }
 
         // LEFT and RIGHT
         for (int i = 1; i < ysize - 1; ++i)
         {
             // LEFT
-            core(i, 0).neighbors.resize(3);
-            core(i, 0).neighbors.emplace_back(&core(i - 1, 0));
-            core(i, 0).neighbors.emplace_back(&core(i, 1));
-            core(i, 0).neighbors.emplace_back(&core(i + 1, 0));
+            core(i, 0).neighbors = {nullptr, nullptr, nullptr};
+            core(i, 0).neighbors[0] = &core(i - 1, 0);
+            core(i, 0).neighbors[1] = &core(i, 1);
+            core(i, 0).neighbors[2] = &core(i + 1, 0);
 
             // RIGHT
-            core(i, xsize - 1).neighbors.resize(3);
-            core(i, xsize - 1).neighbors.emplace_back(&core(i - 1, xsize - 1));
-            core(i, xsize - 1).neighbors.emplace_back(&core(i, xsize - 2));
-            core(i, xsize - 1).neighbors.emplace_back(&core(i + 1, xsize - 1));
+            core(i, xsize - 1).neighbors = {nullptr, nullptr, nullptr};
+            core(i, xsize - 1).neighbors[0] = &core(i - 1, xsize - 1);
+            core(i, xsize - 1).neighbors[1] = &core(i, xsize - 2);
+            core(i, xsize - 1).neighbors[2] = &core(i + 1, xsize - 1);
         }
 
-        //core
+        // core
         for (int i = 1; i < ysize - 1; ++i)
-            for (int j = 1; j < xsize - 1; ++j){
-                core(i,j).neighbors.resize(4);
-                core(i, j).neighbors.emplace_back(&core(i - 1, j));
-                core(i, j).neighbors.emplace_back(&core(i + 1, j));
-                core(i, j).neighbors.emplace_back(&core(i, j + 1));
-                core(i, j).neighbors.emplace_back(&core(i, j - 1));
+            for (int j = 1; j < xsize - 1; ++j)
+            {   
+                core(i, j).neighbors = {nullptr, nullptr, nullptr, nullptr};
+                core(i, j).neighbors[0] = &core(i - 1, j);
+                core(i, j).neighbors[1] = &core(i + 1, j);
+                core(i, j).neighbors[2] = &core(i, j + 1);
+                core(i, j).neighbors[3] = &core(i, j - 1);
             }
 
         //corners
         //LEFT DOWN
-        core(0, 0).neighbors.resize(2);
-        core(0, 0).neighbors.emplace_back(&core(1, 0));
-        core(0, 0).neighbors.emplace_back(&core(0, 1));    
+        core(0, 0).neighbors = {nullptr, nullptr};
+        core(0, 0).neighbors[0] = &core(1, 0);
+        core(0, 0).neighbors[1] = &core(0, 1);    
 
         //LEFT UP
-        core(ysize-1, 0).neighbors.resize(2);
-        core(ysize-1, 0).neighbors.emplace_back(&core(ysize - 2, 0));
-        core(ysize-1, 0).neighbors.emplace_back(&core(ysize - 1, 1));
+         core(ysize-1, 0).neighbors = {nullptr, nullptr};
+        core(ysize-1, 0).neighbors[0] = &core(ysize - 2, 0);
+        core(ysize-1, 0).neighbors[1] = &core(ysize - 1, 1);
 
         //RIGHT UP
-        core(ysize-1, xsize-1).neighbors.resize(2);
-        core(ysize-1, xsize-1).neighbors.emplace_back(&core(ysize - 2, xsize-1));
-        core(ysize-1, xsize-1).neighbors.emplace_back(&core(ysize - 1, xsize-2));
+        core(ysize-1, xsize-1).neighbors = {nullptr, nullptr};
+        core(ysize-1, xsize-1).neighbors[0] = &core(ysize - 2, xsize-1);
+        core(ysize-1, xsize-1).neighbors[1] = &core(ysize - 1, xsize-2);
 
         //RIGHT DOWN
-        core(ysize-1, 0).neighbors.resize(2);
-        core(ysize-1, 0).neighbors.emplace_back(&core(1, xsize-1));
-        core(ysize-1, 0).neighbors.emplace_back(&core(0, xsize-2));
+        core(ysize-1, 0).neighbors = {nullptr, nullptr};
+        core(ysize-1, 0).neighbors[0] = &core(1, xsize-1);
+        core(ysize-1, 0).neighbors[1] = &core(0, xsize-2);
+
+
     }
 
     void solver::interpolation()
@@ -182,58 +184,59 @@ namespace ugks
 
     void solver::least_square_solver(cell &core)
     {
-        Eigen::ArrayXXd A11(ysize, xsize), A12(ysize, xsize);
-        Eigen::ArrayXXd A21(ysize, xsize), A22(ysize, xsize);
+        Eigen::ArrayXXd A11(vsize, usize), A12(vsize, usize);
+        Eigen::ArrayXXd A21(vsize, usize), A22(vsize, usize);
 
-        Eigen::ArrayXXd Bh1(ysize, xsize), Bh2(ysize, xsize);
-        Eigen::ArrayXXd Bb1(ysize, xsize), Bb2(ysize, xsize);
+        Eigen::ArrayXXd Bh1(vsize, usize), Bh2(vsize, usize);
+        Eigen::ArrayXXd Bb1(vsize, usize), Bb2(vsize, usize);
 
         for (auto &neighbor : core.neighbors)
         {
-            A11 += std::pow(neighbor->x - core.x, 2);
-            A12 += (neighbor->x - core.x) * (neighbor->y - core.y);
-            A22 += std::pow(neighbor->y - core.y, 2);
-            Bh1 += (neighbor->x - core.x) * (neighbor->h - core.h);
-            Bh2 += (neighbor->y - core.y) * (neighbor->h - core.h);
-            Bb1 += (neighbor->x - core.x) * (neighbor->b - core.h);
-            Bb2 += (neighbor->y - core.y) * (neighbor->b - core.h);
+            A11 += std::pow(core.x - neighbor->x, 2);
+            A12 += (core.x - neighbor->x) * (core.y - neighbor->y);
+            A22 += std::pow(core.y - neighbor->y, 2);
+
+            Bh1 += (core.x - neighbor->x) * (core.h - neighbor->h);
+            Bh2 += (core.y - neighbor->y) * (core.h - neighbor->h);
+            Bb1 += (core.x - neighbor->x) * (core.b - neighbor->b);
+            Bb2 += (core.y - neighbor->y) * (core.b - neighbor->b);
         }
 
         A21 = A12;
 
-        auto det = A11 * A22 - A12 * A21;
+        Eigen::ArrayXXd det = A11 * A22 - A12 * A21;
 
-        // DBL_EPSILON to avoid 0
-        core.sh[DX] = (Bh1 * A22 - Bh2 * A12) / (det + DBL_EPSILON);
-        core.sh[DY] = (Bh2 * A11 - Bh1 * A21) / (det + DBL_EPSILON);
+        // TODO: write this better
+        for (size_t i = 0; i < vsize; ++i)
+            for (size_t j = 0; j < usize; ++j)
+            {   //TODO:fix this
+                if (std::abs(det(i, j)) > 1e-8)
+                {
+                    core.sh[DX](i, j) = (Bh1(i, j) * A22(i, j) - Bh2(i, j) * A12(i, j)) / det(i, j);
+                    core.sh[DY](i, j) = (Bh2(i, j) * A11(i, j) - Bh1(i, j) * A21(i, j)) / det(i, j);
 
-        core.sb[DX] = (Bb1 * A22 - Bb2 * A12) / (det + DBL_EPSILON);
-        core.sb[DY] = (Bb2 * A11 - Bb1 * A21) / (det + DBL_EPSILON);
+                    core.sb[DX](i, j) = (Bb1(i, j) * A22(i, j) - Bb2(i, j) * A12(i, j)) / det(i, j);
+                    core.sb[DY](i, j) = (Bb2(i, j) * A11(i, j) - Bb1(i, j) * A21(i, j)) / det(i, j);
+
+                }
+                else
+                {
+                    core.sh[DX](i, j) = 0;
+                    core.sh[DY](i, j) = 0;
+
+                    core.sb[DX](i, j) = 0;
+                    core.sb[DY](i, j) = 0;
+                }
+            }
     }
-
-    void solver::interp_boundary(cell &cell_N, cell &cell_L, cell &cell_R, direction dir)
-    {
-        cell_N.sh[dir] = (cell_R.h - cell_L.h) / (0.5 * cell_R.length[dir] + 0.5 * cell_L.length[dir]);
-        cell_N.sb[dir] = (cell_R.b - cell_L.b) / (0.5 * cell_R.length[dir] + 0.5 * cell_L.length[dir]);
-    }
-
-    void solver::interp_inner(cell &cell_L, cell &cell_N, cell &cell_R, direction dir)
-    {
-        Eigen::ArrayXXd sL = (cell_N.h - cell_L.h) / (0.5 * cell_N.length[dir] + 0.5 * cell_L.length[dir]);
-        Eigen::ArrayXXd sR = (cell_R.h - cell_N.h) / (0.5 * cell_R.length[dir] + 0.5 * cell_N.length[dir]);
-        cell_N.sh[dir] = (Eigen::sign(sR) + Eigen::sign(sL)) * sR.abs() * sL.abs() / (sR.abs() + sL.abs() + DBL_EPSILON);
-
-        sL = (cell_N.b - cell_L.b) / (0.5 * cell_N.length[dir] + 0.5 * cell_L.length[dir]);
-        sR = (cell_R.b - cell_N.b) / (0.5 * cell_R.length[dir] + 0.5 * cell_N.length[dir]);
-        cell_N.sb[dir] = (Eigen::sign(sR) + Eigen::sign(sL)) * sR.abs() * sL.abs() / (sR.abs() + sL.abs() + DBL_EPSILON);
-    }
+    
 
     void solver::flux_calculation()
     {
 
         for (int j = 0; j < xsize; ++j)
         {
-            calc_flux_boundary(bc_D, hface(0, j), core(0, j), direction::IDIR, order::DIRECT);  
+            calc_flux_boundary(bc_D, hface(0, j), core(0, j), direction::IDIR, order::DIRECT);
             calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), direction::IDIR, order::REVERSE);
         }
 
@@ -336,8 +339,6 @@ namespace ugks
             { // cell center
                 core(i, j).y = (i + 0.5) * dy;
                 core(i, j).x = (j + 0.5) * dx;
-                core(i, j).length[0] = dy;
-                core(i, j).length[1] = dx;
                 core(i, j).area = area;
             }
 
@@ -345,16 +346,18 @@ namespace ugks
             for (int j = 0; j < xsize + 1; ++j)
             { // vertical interface
                 vface(i, j).length = dy;
-                vface(i, j).nx = 1.0;
-                vface(i, j).ny = 0.0;
+                vface(i, j).cosa = 1.0;
+                vface(i, j).sina = 0.0;
+                vface(i, j).p = j*dx;
             }
 
         for (int i = 0; i < ysize + 1; ++i)
             for (int j = 0; j < xsize; ++j)
             { // horizontal interface
                 hface(i, j).length = dx;
-                hface(i, j).nx = 0.0;
-                hface(i, j).ny = 1.0;
+                hface(i, j).cosa = 0.0;
+                hface(i, j).sina = 1.0;
+                hface(i, j).p = i*dy;
             }
         
     }
@@ -404,32 +407,83 @@ namespace ugks
             { // cell center
                 core(i, j).y = (mesh(i,j).y + mesh(i+1,j+1).y + mesh(i+1,j).y + mesh(i,j+1).y) * 0.25;
                 core(i, j).x = (mesh(i,j).x + mesh(i+1,j+1).x + mesh(i+1,j).x + mesh(i,j+1).x) * 0.25;
-                core(i, j).length[0] = leng(mesh(i+1,j), mesh(i+1,j+1)); // dy
-                core(i, j).length[1] = leng(mesh(i,j+1), mesh(i+1,j+1)); // dx
-
-                core(i, j).area = 0.5 * ((mesh(i+1,j+1).x - mesh(i,j).x) * (mesh(i+1,j).y - mesh(i,j+1).y) -
+                double area = 0.5 * ((mesh(i+1,j+1).x - mesh(i,j).x) * (mesh(i+1,j).y - mesh(i,j+1).y) -
                                          (mesh(i+1,j).x - mesh(i,j+1).x) * (mesh(i+1,j+1).y - mesh(i,j).y));
-                //TODO: add throw here
+                core(i, j).area = area;
+                //TODO: add throw here for area <= 0
             }
 
-        // TODO: sure dy,dx
+        // vertical interface
         for (size_t i = 0; i < ysize; ++i)
             for (size_t j = 0; j < xsize + 1; ++j)
             {
-                // vertical interface
-                vface(i, j).length = leng(mesh(i,j), mesh(i,j+1)); // dy
-                vface(i, j).nx = (mesh(i,j+1).y - mesh(i,j).y) / vface(i, j).length;
-                vface(i, j).ny = -(mesh(i,j+1).x - mesh(i,j).x) / vface(i, j).length;
+                double len = leng(mesh(i, j), mesh(i + 1, j));
+                double x1 = mesh(i + 1, j).x;
+                double x2 = mesh(i, j).x;
+                double y1 = mesh(i + 1, j).y;
+                double y2 = mesh(i, j).y;
+
+                double a = x2 - x1;
+                double b = y2 - y1;
+
+                vface(i, j).length = len;
+
+                assert(std::abs(a) > DBL_EPSILON || std::abs(b) > DBL_EPSILON);
+
+                if (std::abs(a) < DBL_EPSILON && std::abs(b) > DBL_EPSILON)
+                {
+                    vface(i, j).cosa = 1.0;
+                    vface(i, j).sina = 0.0;
+                    vface(i, j).p = mesh(i, j).x;
+                }
+                else if (std::abs(b) < DBL_EPSILON && std::abs(a) > DBL_EPSILON)
+                {
+                    // TODO: hard mesh deformation, fix this case
+                    assert(false);
+                }
+                else
+                {   
+                    double sqra_b = std::sqrt(a * a + b * b);
+                    vface(i, j).cosa = -b / sqra_b;
+                    vface(i, j).sina = a / sqra_b;
+                    vface(i, j).p = -(x1 * b - y1 * a) / sqra_b;
+                }
             }
 
-        // TODO: sure dy,dx
+        // horizontal interface
         for (size_t i = 0; i < ysize + 1; ++i)
             for (size_t j = 0; j < xsize; ++j)
             {
-                // horizontal interface
-                hface(i, j).length = leng(mesh(i,j), mesh(i+1,j)); // dx;
-                hface(i, j).nx = -(mesh(i+1,j).y - mesh(i,j).y) / hface(i, j).length;
-                hface(i, j).ny = (mesh(i+1,j).x - mesh(i,j).x) / hface(i, j).length;
+                double len = leng(mesh(i, j), mesh(i, j+1));
+                double x1 = mesh(i, j).x;
+                double x2 = mesh(i, j + 1).x;
+                double y1 = mesh(i, j).y;
+                double y2 = mesh(i, j + 1).y;
+
+                double a = x2 - x1;
+                double b = y2 - y1;
+                hface(i, j).length = len;
+
+                assert(std::abs(a) > DBL_EPSILON || std::abs(b) > DBL_EPSILON); // impossible mesh
+
+                if (std::abs(b) < DBL_EPSILON && std::abs(a) > DBL_EPSILON)
+                {
+                    hface(i, j).cosa = 0.0;
+                    hface(i, j).sina = 1.0;
+                    hface(i, j).p = mesh(i, j).y;
+                }
+                else if (std::abs(a) < DBL_EPSILON && std::abs(b) > DBL_EPSILON)
+                {
+                    // TODO: hard mesh deformation, fix this case
+                    assert(false);
+                }
+                else
+                {
+                    double sqra_b = std::sqrt(a * a + b * b);
+                    hface(i, j).cosa = -b / sqra_b;
+                    hface(i, j).sina = a / sqra_b;
+                    hface(i, j).p = -(x1 * b - y1 * a) / sqra_b;
+                }
             }
     }
 
@@ -562,7 +616,7 @@ namespace ugks
         resfile.close();
     }
 
-    template <typename T>
+template <typename T>
     static int __sgn(T val)
     {
         return (T(0) < val) - (val < T(0));
@@ -578,8 +632,8 @@ namespace ugks
         Eigen::Array4d prim;                                                                // boundary condition in local frame
 
         // convert the micro velocity to local frame
-        vn = uspace * face.nx + vspace * face.ny;
-        vt = vspace * face.nx - uspace * face.ny;
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
         
         auto _sign = __sgn(order); //define signature
 
@@ -587,11 +641,16 @@ namespace ugks
         delta = (Eigen::sign(vn) * _sign + 1) / 2;
 
         // boundary condition in local frame
-        prim = tools::frame_local(bc, face.nx, face.ny);
+        prim = tools::frame_local(bc, face.cosa, face.sina);
+
+        //take from normal equation of a line
+        double H = std::abs(cell.x*face.cosa + cell.y*face.sina - face.p);
+        double dx = H * face.cosa;
+        double dy = H * face.sina;
 
         // obtain h^{in} and b^{in}, rotation accounts for the right wall
-        h = cell.h - _sign * 0.5 * cell.length[dir] * cell.sh[dir];
-        b = cell.b - _sign * 0.5 * cell.length[dir] * cell.sb[dir];
+        h = cell.h - _sign * (dx*cell.sh[DX] + dy*cell.sh[DY]);
+        b = cell.b - _sign * (dx*cell.sb[DX] + dy*cell.sb[DY]);
 
         // calculate wall density and Maxwellian distribution
         double SF = (weight * vn * h * (1 - delta)).sum();
@@ -615,7 +674,7 @@ namespace ugks
         face.flux_h = vn * h;
         face.flux_b = vn * b;
 
-        face.flux = tools::frame_global(face.flux, face.nx, face.ny);
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
 
         // total flux
         face.flux = dt * face.length * face.flux;
@@ -727,17 +786,26 @@ namespace ugks
         Eigen::Array<double, 5, 1> Mt;             // some time integration terms
 
         // convert the micro velocity to local frame
-        vn = uspace * face.nx + vspace * face.ny;
-        vt = vspace * face.nx - uspace * face.ny;
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
 
         // Heaviside step function
         delta = (Eigen::sign(vn) + 1) / 2;
 
         // reconstruct initial distribution
-        h = (cell_L.h + 0.5 * cell_L.length[dir] * cell_L.sh[dir]) * delta +
-            (cell_R.h - 0.5 * cell_R.length[dir] * cell_R.sh[dir]) * (1 - delta);
-        b = (cell_L.b + 0.5 * cell_L.length[dir] * cell_L.sb[dir]) * delta +
-            (cell_R.b - 0.5 * cell_R.length[dir] * cell_R.sb[dir]) * (1 - delta);
+        //take from normal equation of a line
+        double HL = std::abs(cell_L.x*face.cosa + cell_L.y*face.sina - face.p);
+        double HR = std::abs(cell_R.x*face.cosa + cell_R.y*face.sina - face.p);
+        double dx_L = HL*face.cosa;
+        double dy_L = HL*face.sina;
+        double dx_R = HR*face.cosa;
+        double dy_R = HR*face.sina;        
+
+        //TODO: input latex comment
+        h = (cell_L.h + dx_L * cell_L.sh[DX] + dy_L * cell_L.sh[DY]) * delta +
+            (cell_R.h - (dx_R * cell_R.sh[DX] + dy_R * cell_R.sh[DY])) * (1 - delta);
+        b = (cell_L.b + dx_L * cell_L.sb[DX] + dy_L * cell_L.sb[DY]) * delta +
+            (cell_R.b - (dx_R * cell_R.sb[DX] + dy_R * cell_R.sb[DY])) * (1 - delta);
 
         sh = cell_L.sh[dir] * delta + cell_R.sh[dir] * (1 - delta);
         sb = cell_L.sb[dir] * delta + cell_R.sb[dir] * (1 - delta);
@@ -756,10 +824,10 @@ namespace ugks
         qf = tools::get_heat_flux(h, b, vn, vt, weight, prim);
 
         // calculate a^L,a^R
-        sw = (w - tools::frame_local(cell_L.w, face.nx, face.ny)) / (0.5 * cell_L.length[dir]); // left slope of W
+        sw = (w - tools::frame_local(cell_L.w, face.cosa, face.sina)) / HL; // left slope of W
         aL = micro_slope(prim, sw);                                                             // calculate a^L
 
-        sw = (tools::frame_local(cell_R.w, face.nx, face.ny) - w) / (0.5 * cell_R.length[dir]); // right slope of W
+        sw = (tools::frame_local(cell_R.w, face.cosa, face.sina) - w) / HR; // right slope of W
         aR = micro_slope(prim, sw);                                                             // calculate a^R
 
         // calculate time slope of W and A
@@ -827,7 +895,7 @@ namespace ugks
                       Mt[2] * vn * (aT[0] * B0 + aT[1] * vn * B0 + aT[2] * vt * B0 + 0.5 * aT[3] * ((vn * vn + vt * vt) * B0 + Mxi[1] * H0)) +
                       Mt[3] * vn * b - Mt[4] * vn * vn * sb;
 
-        face.flux = tools::frame_global(face.flux, face.nx, face.ny);
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
 
         // total flux
         face.flux = face.length * face.flux;
