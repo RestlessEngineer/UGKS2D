@@ -23,8 +23,8 @@ int main(int argc, char *argv[]){
     phys.mu_ref = ugks::tools::get_mu(kn, alpha_ref, omega_ref); //reference viscosity coefficient
 
     //create solver
-    ugks::solver ugks_solver(45, 45, phys, ugks::precision::FIRST_ORDER, CFL);
-    Eigen::Rotation2D<double> rot(0./180.*M_PI);
+    ugks::solver ugks_solver(45, 45, phys, ugks::precision::SECOND_ORDER, CFL);
+    Eigen::Rotation2D<double> rot(-30./180.*M_PI);
     Eigen::Vector2d p1 = {0.,0.};
     Eigen::Vector2d p2 = {0.,1.};
     Eigen::Vector2d p3 = {1.,1.};
