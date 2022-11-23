@@ -195,23 +195,27 @@ namespace ugks
     }
 
     void solver::least_square_solver(cell &core)
-    {   
+    {
+
+        const double TINY_VALUE = 1e-12; //for stabilize derivative
+
         //A matrix
         double A11 = 0, A12 = 0;
         double A21 = 0, A22 = 0;
 
-        Eigen::ArrayXXd Bh1(vsize, usize), Bh2(vsize, usize);
-        Eigen::ArrayXXd Bb1(vsize, usize), Bb2(vsize, usize);
-        Bb1 = 0; Bb2 = 0;
-        Bh1 = 0; Bh2 = 0;
+        Eigen::ArrayXXd Bh1 = Eigen::ArrayXXd::Zero(vsize, usize);
+        Eigen::ArrayXXd Bh2 = Eigen::ArrayXXd::Zero(vsize, usize);
+        Eigen::ArrayXXd Bb1 = Eigen::ArrayXXd::Zero(vsize, usize);
+        Eigen::ArrayXXd Bb2 = Eigen::ArrayXXd::Zero(vsize, usize);
         
         //for limiters
-        Eigen::ArrayXXd MaxH(vsize, usize); MaxH = std::numeric_limits<double>::lowest();
-        Eigen::ArrayXXd MaxB(vsize, usize); MaxB = std::numeric_limits<double>::lowest();
-        Eigen::ArrayXXd MinH(vsize, usize); MinH = std::numeric_limits<double>::max();
-        Eigen::ArrayXXd MinB(vsize, usize); MinB = std::numeric_limits<double>::max();
-        Eigen::ArrayXXd CoeffH(vsize, usize); CoeffH = {1.};
-        Eigen::ArrayXXd CoeffB(vsize, usize); CoeffB = {1.};
+        Eigen::ArrayXXd MaxH = Eigen::ArrayXXd::Constant(vsize, usize, std::numeric_limits<double>::lowest());
+        Eigen::ArrayXXd MaxB = Eigen::ArrayXXd::Constant(vsize, usize, std::numeric_limits<double>::lowest());
+        Eigen::ArrayXXd MinH = Eigen::ArrayXXd::Constant(vsize, usize, std::numeric_limits<double>::max());
+        Eigen::ArrayXXd MinB = Eigen::ArrayXXd::Constant(vsize, usize, std::numeric_limits<double>::max());
+        
+        Eigen::ArrayXXd CoeffH = Eigen::ArrayXXd::Constant(vsize, usize, 1.);
+        Eigen::ArrayXXd CoeffB = Eigen::ArrayXXd::Constant(vsize, usize, 1.);
 
         for (auto &neighbor : core.neighbors)
         {
@@ -242,18 +246,12 @@ namespace ugks
                 }
         }
 
-
-        //for core
-        for (size_t i = 0; i < vsize; ++i)
-            for (size_t j = 0; j < usize; ++j)
-            {
-                MaxH(i, j) = std::max(core.h(i, j), MaxH(i, j));
-                MaxB(i, j) = std::max(core.b(i, j), MaxB(i, j));
-                
-                MinH(i, j) = std::min(core.h(i, j), MinH(i, j));
-                MinB(i, j) = std::min(core.b(i, j), MinB(i, j));
-            }
-
+        auto limiter = [](double val){
+            //return val >= 1.5 ? 1 : val - 4./27.*std::pow(val,3);
+            return (val*val + 2*val)/(val*val + val + 2);
+            //return std::min(1., val + 8./27.*std::pow(val,3) - 16./27.*std::pow(val,4) + 16./81.*std::pow(val,5));
+            
+        };
 
         //get limiter coefficient
         for (size_t i = 0; i < vsize; ++i)
@@ -264,28 +262,33 @@ namespace ugks
                 for (auto &neighbor : core.neighbors)
                 {
                     double coH = 1, coB = 1;
-                    // TODO: fix sign
                     if (neighbor->h(i, j) > core.h(i, j))
-                    {
-                        coH = (MaxH(i, j) - core.h(i, j)) / (neighbor->h(i, j) - core.h(i, j));
+                    {   
+                        double diff = neighbor->h(i, j) - core.h(i, j);
+                        coH = (MaxH(i, j) - core.h(i, j)) / (diff + __sgn(diff)*TINY_VALUE);
+                        coH = limiter(coH);
                     }
                     else if (neighbor->h(i, j) < core.h(i, j))
-                    {
-                        coH = (MinH(i, j) - core.h(i, j)) / (neighbor->h(i, j) - core.h(i, j));
+                    {   
+                        double diff = neighbor->h(i, j) - core.h(i, j);
+                        coH = (MinH(i, j) - core.h(i, j)) / (diff + __sgn(diff)*TINY_VALUE);
+                        coH = limiter(coH);
                     }
                     minCoeffH = std::min(coH, minCoeffH);
 
                     if (neighbor->b(i, j) > core.b(i, j))
                     {
-                        coB = (MaxB(i, j) - core.b(i, j)) / (neighbor->b(i, j) - core.b(i, j));
+                        double diff = neighbor->b(i, j) - core.b(i, j);
+                        coB = (MaxB(i, j) - core.b(i, j)) / (diff + __sgn(diff)*TINY_VALUE);
+                        coB = limiter(coB);
                     }
                     else if (neighbor->b(i, j) < core.b(i, j))
                     {
-                        coB = (MinB(i, j) - core.b(i, j)) / (neighbor->b(i, j) - core.b(i, j));
+                        double diff = neighbor->b(i, j) - core.b(i, j);
+                        coB = (MinB(i, j) - core.b(i, j)) / (diff + __sgn(diff)*TINY_VALUE);
+                        coB = limiter(coB);
                     }
                     minCoeffB = std::min(coB, minCoeffB);
-                    assert(!std::isnan(minCoeffB));
-                    assert(!std::isnan(minCoeffH));
                 }
 
                 CoeffH(i, j) = minCoeffH;
@@ -306,12 +309,11 @@ namespace ugks
                 Eigen::Vector2d h = A.colPivHouseholderQr().solve(bh);
                 Eigen::Vector2d b = A.colPivHouseholderQr().solve(bb);
                 
-                //TODO: 0.7 for stabilization of calculations. fix this by better method 
-                core.sh[DX](i, j) = 0.7 * CoeffH(i, j) * h[0];
-                core.sh[DY](i, j) = 0.7 * CoeffH(i, j) * h[1];
+                core.sh[DX](i, j) = CoeffH(i, j) * h[0];
+                core.sh[DY](i, j) = CoeffH(i, j) * h[1];
 
-                core.sb[DX](i, j) = 0.7 * CoeffB(i, j) * b[0];
-                core.sb[DY](i, j) = 0.7 * CoeffB(i, j) * b[1];
+                core.sb[DX](i, j) = CoeffB(i, j) * b[0];
+                core.sb[DY](i, j) = CoeffB(i, j) * b[1];
             }
 
     }
