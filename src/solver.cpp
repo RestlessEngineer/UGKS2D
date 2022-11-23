@@ -5,6 +5,7 @@
 #include <fstream>
 #include <float.h>
 #include <limits>
+#include <omp.h>
 
 //*******************************************************
 // coordinate system                                    *
@@ -241,6 +242,7 @@ namespace ugks
                 }
         }
 
+
         //for core
         for (size_t i = 0; i < vsize; ++i)
             for (size_t j = 0; j < usize; ++j)
@@ -251,6 +253,7 @@ namespace ugks
                 MinH(i, j) = std::min(core.h(i, j), MinH(i, j));
                 MinB(i, j) = std::min(core.b(i, j), MinB(i, j));
             }
+
 
         //get limiter coefficient
         for (size_t i = 0; i < vsize; ++i)
@@ -315,34 +318,38 @@ namespace ugks
     
 
     void solver::flux_calculation()
-    {
+    {      
 
         for (int j = 0; j < xsize; ++j)
         {
             calc_flux_boundary(bc_D, hface(0, j), core(0, j), direction::IDIR, order::DIRECT);
             calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), direction::IDIR, order::REVERSE);
         }
-
-        for (int i = 1; i < ysize; ++i)
+        
+        for (int i = 1; i < ysize; ++i){
+            #pragma omp parallel for
             for (int j = 0; j < xsize; ++j)
                 calc_flux(core(i - 1, j), hface(i, j), core(i, j), direction::IDIR);
-
+        }
+        
         for (int i = 0; i < ysize; ++i)
         {
             calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), direction::JDIR, order::DIRECT);
             calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), direction::JDIR, order::REVERSE);
         }
 
-        for (int i = 0; i < ysize; ++i)
-            for (int j = 1; j < xsize; ++j)
+        for (int j = 1; j < xsize; ++j){
+            #pragma omp parallel for
+            for (int i = 0; i < ysize; ++i)
                 calc_flux(core(i, j - 1), vface(i, j), core(i, j), direction::JDIR);
+        }
     }
 
     void solver::update()
     {
-        static Eigen::ArrayXXd H_old(vsize, usize), B_old(vsize, usize);   // equilibrium distribution at t=t^n
-        static Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);           // equilibrium distribution at t=t^{n+1}
-        static Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part
+        Eigen::ArrayXXd H_old(vsize, usize), B_old(vsize, usize);   // equilibrium distribution at t=t^n
+        Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);           // equilibrium distribution at t=t^{n+1}
+        Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part
         Eigen::Array4d w_old;                                                                       // conservative variables at t^n
         Eigen::Array4d prim_old, prim;                                                              // primary variables at t^n and t^{n+1}
         Eigen::Array4d sum_res, sum_avg;
@@ -703,10 +710,12 @@ namespace ugks
     void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face,
                                     cell cell, direction dir, int order)
     {
-        static Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velocity
-        static Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
-        static Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
-        static Eigen::ArrayXXd delta(vsize, usize);                                // Heaviside step function
+
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
+        Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
+        Eigen::ArrayXXd delta(vsize, usize);                                // Heaviside step function
+
         Eigen::Array4d prim;                                                                // boundary condition in local frame
 
         // convert the micro velocity to local frame
@@ -844,12 +853,13 @@ namespace ugks
     void solver::calc_flux(cell &cell_L, cell_interface &face, cell &cell_R, direction dir)
     {
 
-        static Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);         // normal and tangential micro velocity
-        static Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);           // distribution function at the interface
-        static Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize);         // Maxwellian distribution function
-        static Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part of the equilibrium distribution
-        static Eigen::ArrayXXd sh(vsize, usize), sb(vsize, usize);         // slope of distribution function at the interface
-        static Eigen::ArrayXXd delta(vsize, usize);                                        // Heaviside step function
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);         // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);           // distribution function at the interface
+        Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize);         // Maxwellian distribution function
+        Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part of the equilibrium distribution
+        Eigen::ArrayXXd sh(vsize, usize), sb(vsize, usize);         // slope of distribution function at the interface
+        Eigen::ArrayXXd delta(vsize, usize);                                        // Heaviside step function
+
 
         Eigen::Array4d w, prim; // conservative and primary variables at the interface
 
