@@ -75,8 +75,8 @@ namespace ugks
 
 
         //* fluid space
-        static const unsigned int MNUM = 7; // number of normal velosity moments
-        static const unsigned int MTUM = 5; // number of tangential velosity moments
+        static const unsigned int MNUM = 7; // number of normal velocity moments
+        static const unsigned int MTUM = 5; // number of tangential velocity moments
 
         Eigen::Array<point, -1, -1> mesh;                  // mesh (node coordinates)
         Eigen::Array<cell, -1, -1> core;                   // cell centers
@@ -84,11 +84,11 @@ namespace ugks
 
         Eigen::Array4d bc_L, bc_R, bc_U, bc_D; // boundary conditions at LEFT, RIGHT, UP and DOWN boundary
 
-        //* velosity space
-        size_t usize = 0, vsize = 0;    // number of velosity points for u and v
-        double umax, vmax;              // maximum micro velosity
-        Eigen::ArrayXXd uspace, vspace; // u and v discrete velosity space
-        Eigen::ArrayXXd weight;         // weight at velosity u_k and v_l
+        //* velocity space
+        size_t usize = 0, vsize = 0;    // number of velocity points for u and v
+        double umax, vmax;              // maximum micro velocity
+        Eigen::ArrayXXd uspace, vspace; // u and v discrete velocity space
+        Eigen::ArrayXXd weight;         // weight at velocity u_k and v_l
 
     public:
         /// @brief constructor ugks solver
@@ -129,23 +129,29 @@ namespace ugks
                const size_t &rows, const size_t &cols);
 
         /// @brief set boundary condition
-        /// @param bound array with boundary values (density,u-velosity,v-velosity,lambda)
+        /// @param bound array with boundary values (density,u-velocity,v-velocity,lambda)
         /// @param type what is the boundary (LEFT, RIGHT, UP, DOWN)
         void set_boundary(const Eigen::Array4d bound, boundary type);
 
         /// @brief initialize the mesh
-        /// @param xnum,ynum       :number of cells in x and y direction
         /// @param xlength,ylength :domain length in x and y direction
         void set_geometry(const double &xlength, const double &ylength);
+
+        /// @brief initialize the mesh
+        /// @param left_down left down point of the rectangular
+        /// @param left_up left up point of the rectangular
+        /// @param right_up  right up point of the rectangular
+        /// @param right_down  right down point of the rectangular
+        void set_geometry(const point &left_down, const point &left_up, const point &right_up, const point &right_down);
 
         /// @brief set the initial gas condition
         /// @param init_gas initial condition
         void set_flow_field(const Eigen::Array4d &init_gas);
 
-        /// @brief initialize velosity space 
+        /// @brief initialize velocity space 
         /// @param param parameters for filling
         /// @param integ integration way (Newton-Cotes or Gauss)
-        void set_velosity_space(const vel_space_param& param, integration integ = integration::GAUSS);
+        void set_velocity_space(const vel_space_param& param, integration integ = integration::GAUSS);
 
         /// @brief solving for one time step
         /// @return simulation parameters
@@ -168,34 +174,27 @@ namespace ugks
 
     private:
         
+        /// @brief make acquaintances for neighbors
+        void associate_neighbors();
+
         /// @brief allocation global arrays
-        void allocation_velosity_space();
+        void allocation_velocity_space();
 
         /// @brief calculation of the time step
         void timestep();
 
         /// @brief calculation of the slope of distribution function
         void interpolation();
-        
+
         /// @brief calculate the flux across the interfaces
         void flux_calculation();
 
         /// @brief updating of the cell averaged values
         void update();
 
-        /// @brief one-sided interpolation of the boundary cell
-        /// @param cell_N the target boundary cell
-        /// @param cell_L the left cell
-        /// @param cell_R the right cell
-        /// @param idx    the index indicating i or j direction
-        void interp_boundary(cell &cell_N, cell &cell_L, cell &cell_R, direction dir);
-
-        /// @brief interpolation of the inner cells
-        /// @param cell_L the left cell
-        /// @param cell_N the target cell
-        /// @param cell_R the right cell
-        /// @param idx    the index indicating i or j direction
-        void interp_inner(cell &cell_L, cell &cell_N, cell &cell_R, direction dir);
+        /// @brief calculate dx dy slopes by solving linear least square system
+        /// @param core central cell 
+        void least_square_solver(cell& core);
 
         /// @brief calculate flux of boundary interface, assuming left wall
         /// @param bc   boundary condition
@@ -211,7 +210,7 @@ namespace ugks
         /// @return slope of Maxwellian distribution
         [[nodiscard]] Eigen::Array4d micro_slope(const Eigen::Array4d &prim, const Eigen::Array4d &sw);
 
-        /// @brief calculate moments of velosity
+        /// @brief calculate moments of velocity
         /// @param prim      primary variables
         /// @param Mu,Mv     <u^n>,<v^m>
         /// @param Mxi       <\xi^l>
