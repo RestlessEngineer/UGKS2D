@@ -9,7 +9,7 @@
 int main(int argc, char *argv[]){
 
     const double residual = 1e-5;
-    const double CFL = 0.8;
+    const double CFL = 0.8; // Courant–Friedrichs–Lewy number
 
     const double kn = 0.1;        // 0.075 Knudsen number in reference state
     const double alpha_ref = 1.0; // coefficient in HS model
