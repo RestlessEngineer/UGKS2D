@@ -328,8 +328,8 @@ namespace ugks
 
         for (int j = 0; j < xsize; ++j)
         {
-            calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD);
-            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU);
+            calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD, order::DIRECT);
+            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU, order::REVERSE);
         }
         
         for (int i = 1; i < ysize; ++i){
@@ -340,8 +340,8 @@ namespace ugks
         
         for (int i = 0; i < ysize; ++i)
         {
-            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL);
-            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR);
+            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL, order::DIRECT);
+            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR, order::REVERSE);
         }
 
         for (int j = 1; j < xsize; ++j){
@@ -712,28 +712,28 @@ namespace ugks
         resfile.close();
     }
 
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, boundary_type type)
+    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type type, int side)
     {
         switch (type)
         {
         case boundary_type::WALL:
-            calc_flux_boundary_wall(bc, face, cell);
+            calc_flux_boundary_wall(bc, face, cell, side);
             break;
         case boundary_type::INPUT:
-            calc_flux_boundary_input(bc, face, cell);
+            calc_flux_boundary_input(bc, face, cell, side);
             break;
         case boundary_type::OUTPUT:
-            calc_flux_boundary_output(bc, face, cell);
+            calc_flux_boundary_output(bc, face, cell, side);
             break;
         case boundary_type::MIRROR:
-            calc_flux_boundary_mirror(bc, face, cell);
+            calc_flux_boundary_mirror(bc, face, cell, side);
             break;
         default:
             break;
         }
     }
 
-    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell)
+    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int side)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
@@ -750,17 +750,22 @@ namespace ugks
         // boundary condition in local frame
         prim = tools::frame_local(bc, face.cosa, face.sina);
 
+        auto _sign = __sgn(side); //define signature
+
+        // Heaviside step function. The rotation accounts for the right wall
+        delta = (Eigen::sign(vn) * _sign + 1) / 2;
+
+        // boundary condition in local frame
+        prim = tools::frame_local(bc, face.cosa, face.sina);
+
         //take from normal equation of a line
-        double H = cell.x*face.cosa + cell.y*face.sina - face.p;
+        double H = std::abs(cell.x*face.cosa + cell.y*face.sina - face.p);
         double dx = H * face.cosa;
         double dy = H * face.sina;
 
-        // Heaviside step function. The rotation accounts for the right wall
-        delta = (Eigen::sign(vn) * __sgn(H) + 1) / 2; // for REVERSE order H is negative
-
         // obtain h^{in} and b^{in}, rotation accounts for the right wall
-        h = cell.h - (dx*cell.sh[DX] + dy*cell.sh[DY]);
-        b = cell.b - (dx*cell.sb[DX] + dy*cell.sb[DY]);
+        h = cell.h - _sign * (dx*cell.sh[DX] + dy*cell.sh[DY]);
+        b = cell.b - _sign * (dx*cell.sb[DX] + dy*cell.sb[DY]);
 
         // calculate wall density and Maxwellian distribution
         double SF = (weight * vn * h * (1 - delta)).sum();
@@ -906,8 +911,8 @@ namespace ugks
 
         // reconstruct initial distribution
         //take from normal equation of a line
-        double HL = cell_L.x*face.cosa + cell_L.y*face.sina - face.p;
-        double HR = cell_R.x*face.cosa + cell_R.y*face.sina - face.p;
+        double HL = std::abs(cell_L.x*face.cosa + cell_L.y*face.sina - face.p);
+        double HR = std::abs(cell_R.x*face.cosa + cell_R.y*face.sina - face.p);
         double dx_L = HL*face.cosa;
         double dy_L = HL*face.sina;
         double dx_R = HR*face.cosa;
@@ -915,9 +920,9 @@ namespace ugks
 
         //TODO: input latex comment
         h = (cell_L.h + dx_L * cell_L.sh[DX] + dy_L * cell_L.sh[DY]) * delta +
-            (cell_R.h + dx_R * cell_R.sh[DX] + dy_R * cell_R.sh[DY]) * (1 - delta);
+            (cell_R.h - (dx_R * cell_R.sh[DX] + dy_R * cell_R.sh[DY])) * (1 - delta);
         b = (cell_L.b + dx_L * cell_L.sb[DX] + dy_L * cell_L.sb[DY]) * delta +
-            (cell_R.b + dx_R * cell_R.sb[DX] + dy_R * cell_R.sb[DY]) * (1 - delta);
+            (cell_R.b - (dx_R * cell_R.sb[DX] + dy_R * cell_R.sb[DY])) * (1 - delta);
 
         sh = cell_L.sh[dir] * delta + cell_R.sh[dir] * (1 - delta);
         sb = cell_L.sb[dir] * delta + cell_R.sb[dir] * (1 - delta);
