@@ -712,28 +712,28 @@ namespace ugks
         resfile.close();
     }
 
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type type, int side)
+    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type type, int ord)
     {
         switch (type)
         {
         case boundary_type::WALL:
-            calc_flux_boundary_wall(bc, face, cell, side);
+            calc_flux_boundary_wall(bc, face, cell, ord);
             break;
         case boundary_type::INPUT:
-            calc_flux_boundary_input(bc, face, cell, side);
+            calc_flux_boundary_input(bc, face, cell, ord);
             break;
         case boundary_type::OUTPUT:
-            calc_flux_boundary_output(bc, face, cell, side);
+            calc_flux_boundary_output(bc, face, cell, ord);
             break;
         case boundary_type::MIRROR:
-            calc_flux_boundary_mirror(bc, face, cell, side);
+            calc_flux_boundary_mirror(bc, face, cell, ord);
             break;
         default:
             break;
         }
     }
 
-    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int side)
+    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
@@ -750,7 +750,7 @@ namespace ugks
         // boundary condition in local frame
         prim = tools::frame_local(bc, face.cosa, face.sina);
 
-        auto _sign = __sgn(side); //define signature
+        auto _sign = __sgn(ord); //define signature
 
         // Heaviside step function. The rotation accounts for the right wall
         delta = (Eigen::sign(vn) * _sign + 1) / 2;
