@@ -56,21 +56,25 @@ namespace ugks
         Pr = phys.Pr;
     }
     
-    void solver::set_boundary(const Eigen::Array4d bound, boundary type)
+    void solver::set_boundary(boundary_side side, const Eigen::Array4d bound, boundary_type type)
     {
-        switch (type)
+        switch (side)
         {
-        case boundary::LEFT:
+        case boundary_side::LEFT:
             bc_L = bound;
+            bc_typeL = type;
             break;
-        case boundary::RIGHT:
+        case boundary_side::RIGHT:
             bc_R = bound;
+            bc_typeR = type;
             break;
-        case boundary::UP:
+        case boundary_side::UP:
             bc_U = bound;
+            bc_typeU = type;
             break;
-        case boundary::DOWN:
+        case boundary_side::DOWN:
             bc_D = bound;
+            bc_typeD = type;
             break;
         default:
             break;
@@ -106,6 +110,7 @@ namespace ugks
 
         // time step
         dt = CFL / tmax;
+    //    dt = CFL*0.1e-2;
     }
 
     void solver::associate_neighbors(){
@@ -246,11 +251,10 @@ namespace ugks
                 }
         }
 
-        auto limiter = [](double val){
-            //return val >= 1.5 ? 1 : val - 4./27.*std::pow(val,3);
-            return (val*val + 2*val)/(val*val + val + 2);
-            //return std::min(1., val + 8./27.*std::pow(val,3) - 16./27.*std::pow(val,4) + 16./81.*std::pow(val,5));
-            
+        //TODO: make the reference to the paper!
+        auto limiter = [](double val)
+        {
+            return (val * val + 2 * val) / (val * val + val + 2);
         };
 
         //get limiter coefficient
@@ -324,8 +328,8 @@ namespace ugks
 
         for (int j = 0; j < xsize; ++j)
         {
-            calc_flux_boundary(bc_D, hface(0, j), core(0, j), direction::IDIR, order::DIRECT);
-            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), direction::IDIR, order::REVERSE);
+            calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD);
+            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU);
         }
         
         for (int i = 1; i < ysize; ++i){
@@ -336,8 +340,8 @@ namespace ugks
         
         for (int i = 0; i < ysize; ++i)
         {
-            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), direction::JDIR, order::DIRECT);
-            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), direction::JDIR, order::REVERSE);
+            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL);
+            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR);
         }
 
         for (int j = 1; j < xsize; ++j){
@@ -708,38 +712,55 @@ namespace ugks
         resfile.close();
     }
 
+    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, boundary_type type)
+    {
+        switch (type)
+        {
+        case boundary_type::WALL:
+            calc_flux_boundary_wall(bc, face, cell);
+            break;
+        case boundary_type::INPUT:
+            calc_flux_boundary_input(bc, face, cell);
+            break;
+        case boundary_type::OUTPUT:
+            calc_flux_boundary_output(bc, face, cell);
+            break;
+        case boundary_type::MIRROR:
+            calc_flux_boundary_mirror(bc, face, cell);
+            break;
+        default:
+            break;
+        }
+    }
 
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face,
-                                    cell cell, direction dir, int order)
+    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
         Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
-        Eigen::ArrayXXd delta(vsize, usize);                                // Heaviside step function
+        Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
 
-        Eigen::Array4d prim;                                                                // boundary condition in local frame
+        Eigen::Array4d prim; // boundary condition in local frame
 
         // convert the micro velocity to local frame
         vn = uspace * face.cosa + vspace * face.sina;
         vt = vspace * face.cosa - uspace * face.sina;
         
-        auto _sign = __sgn(order); //define signature
-
-        // Heaviside step function. The rotation accounts for the right wall
-        delta = (Eigen::sign(vn) * _sign + 1) / 2;
-
         // boundary condition in local frame
         prim = tools::frame_local(bc, face.cosa, face.sina);
 
         //take from normal equation of a line
-        double H = std::abs(cell.x*face.cosa + cell.y*face.sina - face.p);
+        double H = cell.x*face.cosa + cell.y*face.sina - face.p;
         double dx = H * face.cosa;
         double dy = H * face.sina;
 
+        // Heaviside step function. The rotation accounts for the right wall
+        delta = (Eigen::sign(vn) * __sgn(H) + 1) / 2; // for REVERSE order H is negative
+
         // obtain h^{in} and b^{in}, rotation accounts for the right wall
-        h = cell.h - _sign * (dx*cell.sh[DX] + dy*cell.sh[DY]);
-        b = cell.b - _sign * (dx*cell.sb[DX] + dy*cell.sb[DY]);
+        h = cell.h - (dx*cell.sh[DX] + dy*cell.sh[DY]);
+        b = cell.b - (dx*cell.sb[DX] + dy*cell.sb[DY]);
 
         // calculate wall density and Maxwellian distribution
         double SF = (weight * vn * h * (1 - delta)).sum();
@@ -770,6 +791,7 @@ namespace ugks
         face.flux_h = dt * face.length * face.flux_h;
         face.flux_b = dt * face.length * face.flux_b;
     }
+
 
     Eigen::Array4d solver::micro_slope(const Eigen::Array4d &prim, const Eigen::Array4d &sw)
     {
@@ -884,8 +906,8 @@ namespace ugks
 
         // reconstruct initial distribution
         //take from normal equation of a line
-        double HL = std::abs(cell_L.x*face.cosa + cell_L.y*face.sina - face.p);
-        double HR = std::abs(cell_R.x*face.cosa + cell_R.y*face.sina - face.p);
+        double HL = cell_L.x*face.cosa + cell_L.y*face.sina - face.p;
+        double HR = cell_R.x*face.cosa + cell_R.y*face.sina - face.p;
         double dx_L = HL*face.cosa;
         double dy_L = HL*face.sina;
         double dx_R = HR*face.cosa;
@@ -893,9 +915,9 @@ namespace ugks
 
         //TODO: input latex comment
         h = (cell_L.h + dx_L * cell_L.sh[DX] + dy_L * cell_L.sh[DY]) * delta +
-            (cell_R.h - (dx_R * cell_R.sh[DX] + dy_R * cell_R.sh[DY])) * (1 - delta);
+            (cell_R.h + dx_R * cell_R.sh[DX] + dy_R * cell_R.sh[DY]) * (1 - delta);
         b = (cell_L.b + dx_L * cell_L.sb[DX] + dy_L * cell_L.sb[DY]) * delta +
-            (cell_R.b - (dx_R * cell_R.sb[DX] + dy_R * cell_R.sb[DY])) * (1 - delta);
+            (cell_R.b + dx_R * cell_R.sb[DX] + dy_R * cell_R.sb[DY]) * (1 - delta);
 
         sh = cell_L.sh[dir] * delta + cell_R.sh[dir] * (1 - delta);
         sb = cell_L.sb[dir] * delta + cell_R.sb[dir] * (1 - delta);
