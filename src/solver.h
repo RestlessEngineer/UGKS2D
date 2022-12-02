@@ -146,6 +146,12 @@ namespace ugks
         /// @param right_down  right down point of the rectangular
         void set_geometry(const point &left_down, const point &left_up, const point &right_up, const point &right_down);
 
+        /// @brief initialize the mesh
+        /// @param up_wall left down point of the rectangular
+        /// @param down_wall left up point of the rectangular
+        void set_geometry(const std::vector<point>& up_wall, const std::vector<point>& down_wall);
+
+
         /// @brief set the initial gas condition
         /// @param init_gas initial condition
         void set_flow_field(const Eigen::Array4d &init_gas);
@@ -270,6 +276,13 @@ namespace ugks
         /// @param cell_R cell right to the target interface
         /// @param idx    index indicating i or j direction
         void calc_flux(cell &cell_L, cell_interface &face, cell &cell_R, direction dir);
+
+        /// @brief filling of mesh
+        /// @param xupw x cords of up wall
+        /// @param yupw y cords of up wall
+        /// @param xdownw x cords of down wall 
+        /// @param ydownw y cords of down wall
+        void fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw);
     };
 }
 

@@ -458,28 +458,8 @@ namespace ugks
         
     }
 
-    void solver::set_geometry(const point &ld, const point &lu, const point &ru, const point &rd)
+    void solver::fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw)
     {
-
-        mesh.resize(ysize + 1, xsize + 1);
-
-        // create up wall
-        // x
-        Eigen::ArrayXd xupw(xsize + 1);
-        xupw.setLinSpaced(lu.x, ru.x);
-        // y
-        Eigen::ArrayXd yupw(xsize + 1);
-        yupw.setLinSpaced(lu.y, ru.y);
-
-        // create down wall
-        // x
-        Eigen::ArrayXd xdownw(xsize + 1);
-        xdownw.setLinSpaced(ld.x, rd.x);
-        // y
-        Eigen::ArrayXd ydownw(xsize + 1);
-        ydownw.setLinSpaced(ld.y, rd.y);
-
-        // fill mesh
         for (size_t j = 0; j < xsize + 1; ++j)
         {
             double dx = (xupw[j] - xdownw[j]) / ysize;
@@ -582,6 +562,97 @@ namespace ugks
                 }
             }
     }
+
+    void solver::set_geometry(const point &ld, const point &lu, const point &ru, const point &rd)
+    {
+        
+        mesh.resize(ysize + 1, xsize + 1);
+
+        // create up wall
+        // x
+        Eigen::ArrayXd xupw(xsize + 1);
+        xupw.setLinSpaced(lu.x, ru.x);
+        // y
+        Eigen::ArrayXd yupw(xsize + 1);
+        yupw.setLinSpaced(lu.y, ru.y);
+
+        // create down wall
+        // x
+        Eigen::ArrayXd xdownw(xsize + 1);
+        xdownw.setLinSpaced(ld.x, rd.x);
+        // y
+        Eigen::ArrayXd ydownw(xsize + 1);
+        ydownw.setLinSpaced(ld.y, rd.y);
+
+        fill_mesh(xupw, yupw, xdownw, ydownw);
+    }
+
+    
+    std::tuple<Eigen::ArrayXd, Eigen::ArrayXd> create_wall_coords(const std::vector<point>& wall, size_t wall_size)
+    {
+        std::vector<size_t> fragment_sizes(wall.size() - 1);
+        double xleng = wall.back().x - wall.front().x;
+        double addiction = 0;
+        for(size_t i = 0; i < wall.size() - 1; ++i)
+        {
+            double part_leng = (wall[i+1].x - wall[i].x)/xleng*(wall_size);
+            size_t frag_size = std::round(part_leng + addiction);
+            addiction = part_leng - frag_size;
+            fragment_sizes[i] = frag_size;            
+        }
+
+        std::vector<Eigen::ArrayXd> X(wall.size() - 1);
+        std::vector<Eigen::ArrayXd> Y(wall.size() - 1);
+
+        for(size_t i = 0; i < wall.size() - 1; ++i)
+        {
+            Eigen::ArrayXd x_fragment(fragment_sizes[i]);
+            Eigen::ArrayXd y_fragment(fragment_sizes[i]);
+            x_fragment.setLinSpaced(wall[i].x, wall[i+1].x);
+            y_fragment.setLinSpaced(wall[i].y, wall[i+1].y);
+            X[i] = x_fragment;
+            Y[i] = y_fragment;
+        }
+        
+        //concatenate up wall
+        //x
+        Eigen::ArrayXd x(wall_size);
+        //y
+        Eigen::ArrayXd y(wall_size);
+        for(size_t i = 0, k = 0; i < fragment_sizes.size(); ++i){
+            for(size_t j = 0; i < fragment_sizes[i]; ++j){
+                x[k] = X[i][j];
+                y[k] = Y[i][j];
+                ++k;
+            }
+        }
+        return {x, y};
+    }
+
+    void solver::set_geometry(const std::vector<point>& up_wall, const std::vector<point>& down_wall)
+    {   
+        if(up_wall.size() < 2 || down_wall.size() < 2)
+            return; //TODO: trow exeption
+
+        mesh.resize(ysize + 1, xsize + 1);
+
+        // create up wall
+        auto up_wall_cords = create_wall_coords(up_wall, xsize + 1);
+        // x
+        Eigen::ArrayXd xupw = std::get<0>(up_wall_cords);
+        // y
+        Eigen::ArrayXd yupw = std::get<1>(up_wall_cords);
+
+        // create down wall
+        auto down_wall_cords = create_wall_coords(down_wall, xsize + 1);
+        // x
+        Eigen::ArrayXd xdownw = std::get<0>(down_wall_cords);
+        // y
+        Eigen::ArrayXd ydownw = std::get<1>(down_wall_cords);
+
+        fill_mesh(xupw, yupw, xdownw, ydownw);
+    }
+
 
     void solver::set_flow_field(const Eigen::Array4d &init_gas)
     {
@@ -815,9 +886,6 @@ namespace ugks
         // Heaviside step function. The rotation accounts for the right wall
         delta = (Eigen::sign(vn) * _sign + 1) / 2;
 
-        // boundary condition in local frame
-        prim = tools::frame_local(bc, face.cosa, face.sina);
-
         // take from normal equation of a line
         double H = std::abs(cell.x * face.cosa + cell.y * face.sina - face.p);
         double dx = H * face.cosa;
@@ -829,12 +897,6 @@ namespace ugks
 
         h_mirror = h;
         b_mirror = b;
-
-        // calculate wall density and Maxwellian distribution
-        double SF = (weight * vn * h * (1 - delta)).sum();
-        double SG = (prim[3] / M_PI) * (weight * vn * exp(-prim[3] * ((vn - prim[1]) * (vn - prim[1]) + (vt - prim[2]) * (vt - prim[2]))) * delta).sum();
-
-        prim[0] = -SF / SG;
 
         // distribution function at the boundary interface
         h = h_mirror * delta + h * (1 - delta);
