@@ -797,6 +797,149 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
+    void solver::calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    {
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);             // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);               // distribution function at the interface
+        Eigen::ArrayXXd h_mirror(vsize, usize), b_mirror(vsize, usize); // distribution function at the interface
+        Eigen::ArrayXXd delta(vsize, usize);                            // Heaviside step function
+
+        Eigen::Array4d prim; // boundary condition in local frame
+
+        // convert the micro velocity to local frame
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
+
+        auto _sign = __sgn(ord); // define signature
+
+        // Heaviside step function. The rotation accounts for the right wall
+        delta = (Eigen::sign(vn) * _sign + 1) / 2;
+
+        // boundary condition in local frame
+        prim = tools::frame_local(bc, face.cosa, face.sina);
+
+        // take from normal equation of a line
+        double H = std::abs(cell.x * face.cosa + cell.y * face.sina - face.p);
+        double dx = H * face.cosa;
+        double dy = H * face.sina;
+
+        // obtain h^{in} and b^{in}, rotation accounts for the right wall
+        h = cell.h - _sign * (dx * cell.sh[DX] + dy * cell.sh[DY]);
+        b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
+
+        h_mirror = h;
+        b_mirror = b;
+
+        // calculate wall density and Maxwellian distribution
+        double SF = (weight * vn * h * (1 - delta)).sum();
+        double SG = (prim[3] / M_PI) * (weight * vn * exp(-prim[3] * ((vn - prim[1]) * (vn - prim[1]) + (vt - prim[2]) * (vt - prim[2]))) * delta).sum();
+
+        prim[0] = -SF / SG;
+
+        // distribution function at the boundary interface
+        h = h_mirror * delta + h * (1 - delta);
+        b = b_mirror * delta + b * (1 - delta);
+
+        // calculate flux
+        face.flux[0] = (weight * vn * h).sum();
+        face.flux[1] = (weight * vn * vn * h).sum();
+        face.flux[2] = (weight * vn * vt * h).sum();
+        face.flux[3] = 0.5 * (weight * vn * ((vn * vn + vt * vt) * h + b)).sum();
+
+        face.flux_h = vn * h;
+        face.flux_b = vn * b;
+
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
+
+        // total flux
+        face.flux = dt * face.length * face.flux;
+        face.flux_h = dt * face.length * face.flux_h;
+        face.flux_b = dt * face.length * face.flux_b;
+    }
+
+    void solver::calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    {
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
+        Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
+        Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
+
+        Eigen::Array4d prim; // boundary condition in local frame
+
+        // convert the micro velocity to local frame
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
+
+        auto _sign = __sgn(ord); // define signature
+
+        // Heaviside step function. The rotation accounts for the right wall
+        delta = (Eigen::sign(vn) * _sign + 1) / 2;
+
+        // boundary condition in local frame
+        prim = tools::frame_local(bc, face.cosa, face.sina);
+
+        // take from normal equation of a line
+        double H = std::abs(cell.x * face.cosa + cell.y * face.sina - face.p);
+        double dx = H * face.cosa;
+        double dy = H * face.sina;
+
+        // obtain h^{in} and b^{in}, rotation accounts for the right wall
+        h = cell.h - _sign * (dx * cell.sh[DX] + dy * cell.sh[DY]);
+        b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
+
+        // get H0, B0
+        tools::maxwell_distribution(H0, B0, vn, vt, prim, DOF);
+
+        // distribution function at the boundary interface
+        h = H0 * delta + h * (1 - delta);
+        b = B0 * delta + b * (1 - delta);
+
+        // calculate flux
+        face.flux[0] = (weight * vn * h).sum();
+        face.flux[1] = (weight * vn * vn * h).sum();
+        face.flux[2] = (weight * vn * vt * h).sum();
+        face.flux[3] = 0.5 * (weight * vn * ((vn * vn + vt * vt) * h + b)).sum();
+
+        face.flux_h = vn * h;
+        face.flux_b = vn * b;
+
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
+
+        // total flux
+        face.flux = dt * face.length * face.flux;
+        face.flux_h = dt * face.length * face.flux_h;
+        face.flux_b = dt * face.length * face.flux_b;
+    }
+
+    void solver::calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    {
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
+
+        // convert the micro velocity to local frame
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
+
+        // obtain h^{in} and b^{in}, rotation accounts for the right wall
+        h = cell.h;
+        b = cell.b;
+
+        // calculate flux
+        face.flux[0] = (weight * vn * h).sum();
+        face.flux[1] = (weight * vn * vn * h).sum();
+        face.flux[2] = (weight * vn * vt * h).sum();
+        face.flux[3] = 0.5 * (weight * vn * ((vn * vn + vt * vt) * h + b)).sum();
+
+        face.flux_h = vn * h;
+        face.flux_b = vn * b;
+
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
+
+        // total flux
+        face.flux = dt * face.length * face.flux;
+        face.flux_h = dt * face.length * face.flux_h;
+        face.flux_b = dt * face.length * face.flux_b;
+    }
 
     Eigen::Array4d solver::micro_slope(const Eigen::Array4d &prim, const Eigen::Array4d &sw)
     {
