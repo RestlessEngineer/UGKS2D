@@ -86,7 +86,7 @@ namespace ugks
 
         Eigen::Array4d prim; // primary variables
 
-        double tmax = 0.0, sos;
+        double tmax = 0.0, sos = 0.0;
 
         for (int i = 0; i < ysize; ++i)
             for (int j = 0; j < xsize; ++j)
@@ -94,23 +94,28 @@ namespace ugks
 
                 // convert conservative variables to primary variables
                 prim = tools::get_primary(core(i, j).w, gamma);
+                auto& face_right = vface(i,j+1);
+                auto& face_up = hface(i+1,j);
 
                 // sound speed
                 sos = tools::get_sos(prim, gamma);
 
                 // maximum velocity
-                prim[1] = std::max(umax, std::abs(prim[1])) + sos;
-                prim[2] = std::max(vmax, std::abs(prim[2])) + sos;
+                auto u = std::max(umax, std::abs(prim[1])) + sos;
+                auto v = std::max(vmax, std::abs(prim[2])) + sos;
+
+                // projections
+                double U = u*face_right.cosa + v*face_right.sina;
+                double V = u*face_up.cosa + v*face_up.sina; 
 
                 // maximum 1/dt allowed
-                //TODO: make this better
+                //* it will work if cell doesn't have big difformations
                 tmax = std::max(tmax,
-                                (prim[1] + prim[2]) / std::sqrt(core(i, j).area));
+                                (U*face_up.length + V*face_right.length) / core(i, j).area);
             }
 
         // time step
         dt = CFL / tmax;
-    //    dt = CFL*0.1e-2;
     }
 
     void solver::associate_neighbors(){
@@ -620,7 +625,7 @@ namespace ugks
         //y
         Eigen::ArrayXd y(wall_size);
         for(size_t i = 0, k = 0; i < fragment_sizes.size(); ++i){
-            for(size_t j = 0; i < fragment_sizes[i]; ++j){
+            for(size_t j = 0; j < fragment_sizes[i]; ++j){
                 x[k] = X[i][j];
                 y[k] = Y[i][j];
                 ++k;

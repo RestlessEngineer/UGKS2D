@@ -24,7 +24,7 @@ int main(int argc, char *argv[]){
 
     //create solver
     ugks::solver ugks_solver(45,45, phys, ugks::precision::SECOND_ORDER, CFL);
-    Eigen::Rotation2D<double> rot(0./180.*M_PI);
+    Eigen::Rotation2D<double> rot(-30./180.*M_PI);
     Eigen::Vector2d p1 = {0.,0.};
     Eigen::Vector2d p2 = {0.,1.};
     Eigen::Vector2d p3 = {1.,1.};
@@ -44,8 +44,7 @@ int main(int argc, char *argv[]){
     ugks::point pp4 = {rot_p4[0], rot_p4[1]};
 
     //set geometry area. box
-    ugks_solver.set_geometry(pp1, pp2, pp3, pp4);
-
+    ugks_solver.set_geometry({pp2, pp3}, {pp1, pp4});
 
     //set velocity space param
     ugks::vel_space_param param;
