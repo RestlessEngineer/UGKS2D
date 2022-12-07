@@ -8,7 +8,7 @@ project(UGKS2D)
 
 set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 
-set(SOURCE src/main.cpp 
+set(SOURCE src/simple_supersonic_nozzle.cpp 
             src/tools.cpp 
             src/solver.cpp)
 

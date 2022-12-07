@@ -611,10 +611,18 @@ namespace ugks
 
         for(size_t i = 0; i < wall.size() - 1; ++i)
         {
+            double dx, dy;
             Eigen::ArrayXd x_fragment(fragment_sizes[i]);
             Eigen::ArrayXd y_fragment(fragment_sizes[i]);
-            x_fragment.setLinSpaced(wall[i].x, wall[i+1].x);
-            y_fragment.setLinSpaced(wall[i].y, wall[i+1].y);
+            dx = (wall[i+1].x - wall[i].x)/(fragment_sizes[i] - 1);
+            dy = (wall[i+1].y - wall[i].y)/(fragment_sizes[i] - 1);
+            if(i ==  wall.size() - 2) //last interval
+            {
+                dx = 0;
+                dy = 0;
+            }
+            x_fragment.setLinSpaced(wall[i].x, wall[i+1].x - dx);
+            y_fragment.setLinSpaced(wall[i].y, wall[i+1].y - dy);
             X[i] = x_fragment;
             Y[i] = y_fragment;
         }
@@ -900,8 +908,13 @@ namespace ugks
         h = cell.h - _sign * (dx * cell.sh[DX] + dy * cell.sh[DY]);
         b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
 
-        h_mirror = h;
-        b_mirror = b;
+        //* strange cooking
+        for(size_t i = 0; i < vsize; ++i)
+            for(size_t j = 0; j < usize; ++j){
+                // TODO: fix this
+                h_mirror(i, j) = h(vsize - i - 1, j);
+                b_mirror(i, j) = b(vsize - i - 1, j);
+            }
 
         // distribution function at the boundary interface
         h = h_mirror * delta + h * (1 - delta);
