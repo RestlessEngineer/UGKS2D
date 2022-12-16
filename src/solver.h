@@ -178,7 +178,7 @@ namespace ugks
         }
 
         /// @brief writting current results
-        void write_results() const;
+        void write_results(std::string file_name = "cavity.dat") const;
 
     private:
         

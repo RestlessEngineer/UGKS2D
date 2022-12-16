@@ -744,7 +744,7 @@ namespace ugks
             }
     }
 
-    void solver::write_results() const
+    void solver::write_results(std::string file_name) const
     {
         std::stringstream result;
         Eigen::ArrayXXd X(ysize, xsize);
@@ -791,7 +791,7 @@ namespace ugks
                << QY;
 
         std::ofstream resfile;
-        resfile.open ("cavity.dat");
+        resfile.open (file_name.c_str());
         resfile << result.str().c_str();
         resfile.close();
     }
@@ -885,7 +885,6 @@ namespace ugks
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);             // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);               // distribution function at the interface
-        Eigen::ArrayXXd h_mirror(vsize, usize), b_mirror(vsize, usize); // distribution function at the interface
         Eigen::ArrayXXd delta(vsize, usize);                            // Heaviside step function
 
         Eigen::Array4d prim; // boundary condition in local frame
@@ -908,24 +907,21 @@ namespace ugks
         h = cell.h - _sign * (dx * cell.sh[DX] + dy * cell.sh[DY]);
         b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
 
-        //* strange cooking
-        for(size_t i = 0; i < vsize; ++i)
-            for(size_t j = 0; j < usize; ++j){
-                // TODO: fix this
-                h_mirror(i, j) = h(vsize - i - 1, j);
-                b_mirror(i, j) = b(vsize - i - 1, j);
-            }
-
         // distribution function at the boundary interface
-        h = h_mirror * delta + h * (1 - delta);
-        b = b_mirror * delta + b * (1 - delta);
+        h = h*(1 - delta);
+        b = b*(1 - delta);
 
-        // calculate flux
-        face.flux[0] = (weight * vn * h).sum();
-        face.flux[1] = (weight * vn * vn * h).sum();
-        face.flux[2] = (weight * vn * vt * h).sum();
-        face.flux[3] = 0.5 * (weight * vn * ((vn * vn + vt * vt) * h + b)).sum();
-
+        // double sum1 = (weight * vn * h).sum();
+        // double sum2 = (weight * vn * h_mirror).sum();
+        
+        // calculate flux      
+        face.flux[0] = 0.;
+        
+        face.flux[1] = 2. * (weight * vn * vn * h).sum();
+        face.flux[2] = 0.;
+        
+        face.flux[3] = 0.;
+        
         face.flux_h = vn * h;
         face.flux_b = vn * b;
 
