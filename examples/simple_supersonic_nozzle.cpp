@@ -50,8 +50,7 @@ int main(int argc, char *argv[]){
 
     // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_flow_field({1.0, 2.0, 0.0, 1.0});
-    ugks_solver.write_results();
-
+    
     while( true ){
 
         auto sim = ugks_solver.solve();
@@ -67,23 +66,7 @@ int main(int argc, char *argv[]){
             " dt: "<< sim.dt << std::endl;
             std::cout << "res: "<< sim.res << std::endl;
         }
-        if(sim.cnt_iter == 100){
-            std::cout<<"write results 100 iteration"<<std::endl;
-            ugks_solver.write_results("cavity1.dat");
-        }
-        if(sim.cnt_iter == 200){
-            std::cout<<"write results 200 iteration"<<std::endl;
-            ugks_solver.write_results("cavity2.dat");
-        }
-        if(sim.cnt_iter == 500){
-            std::cout<<"write results 500 iteration"<<std::endl;
-            ugks_solver.write_results("cavity3.dat");
-        }
-        if(sim.cnt_iter == 1000){
-            std::cout<<"write results 1000 iteration"<<std::endl;
-            ugks_solver.write_results("cavity50.dat");
-            break;
-        }
+
     }
 
     // ugks_solver.write_results();

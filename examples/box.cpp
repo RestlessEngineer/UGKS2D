@@ -68,8 +68,7 @@ int main(int argc, char *argv[]){
 
     // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_flow_field({1.0, 0.0, 0.0, 1.0});
-    ugks_solver.write_results();
-
+    
     while( true ){
 
         auto sim = ugks_solver.solve();
@@ -84,10 +83,6 @@ int main(int argc, char *argv[]){
              " sitime: "<<sim.sitime << 
             " dt: "<< sim.dt << std::endl;
             std::cout << "res: "<< sim.res << std::endl;
-        }
-        if( sim.cnt_iter%200 == 0){
-            std::cout<<"result was written"<<std::endl;
-            ugks_solver.write_results();
         }
     }
 

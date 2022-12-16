@@ -476,7 +476,7 @@ namespace ugks
                 mesh(i, j).y = ydownw[j] + dy * i;
             }
         }
-
+        
         auto leng = [](point p1, point p2) -> double
         {
             return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p2.y - p1.y, 2));
@@ -600,40 +600,41 @@ namespace ugks
         double addiction = 0;
         for(size_t i = 0; i < wall.size() - 1; ++i)
         {
-            double part_leng = (wall[i+1].x - wall[i].x)/xleng*(wall_size);
+            double part_leng = (wall[i+1].x - wall[i].x)/xleng*(wall_size - 1);
             size_t frag_size = std::round(part_leng + addiction);
             addiction = part_leng - frag_size;
-            fragment_sizes[i] = frag_size;            
+            fragment_sizes[i] = frag_size + 1;            
         }
 
         std::vector<Eigen::ArrayXd> X(wall.size() - 1);
         std::vector<Eigen::ArrayXd> Y(wall.size() - 1);
 
-        for(size_t i = 0; i < wall.size() - 1; ++i)
+        for (size_t i = 0; i < wall.size() - 1; ++i)
         {
-            double dx, dy;
             Eigen::ArrayXd x_fragment(fragment_sizes[i]);
             Eigen::ArrayXd y_fragment(fragment_sizes[i]);
-            dx = (wall[i+1].x - wall[i].x)/(fragment_sizes[i] - 1);
-            dy = (wall[i+1].y - wall[i].y)/(fragment_sizes[i] - 1);
-            if(i ==  wall.size() - 2) //last interval
+
+            x_fragment.setLinSpaced(wall[i].x, wall[i + 1].x);
+            y_fragment.setLinSpaced(wall[i].y, wall[i + 1].y);
+            if (i != wall.size() - 2) // last fragment
             {
-                dx = 0;
-                dy = 0;
+                X[i] = x_fragment(Eigen::seq(0, Eigen::last - 1));
+                Y[i] = y_fragment(Eigen::seq(0, Eigen::last - 1));
             }
-            x_fragment.setLinSpaced(wall[i].x, wall[i+1].x - dx);
-            y_fragment.setLinSpaced(wall[i].y, wall[i+1].y - dy);
-            X[i] = x_fragment;
-            Y[i] = y_fragment;
+            else
+            {
+                X[i] = x_fragment;
+                Y[i] = y_fragment;
+            }
         }
-        
+
         //concatenate up wall
         //x
         Eigen::ArrayXd x(wall_size);
         //y
         Eigen::ArrayXd y(wall_size);
-        for(size_t i = 0, k = 0; i < fragment_sizes.size(); ++i){
-            for(size_t j = 0; j < fragment_sizes[i]; ++j){
+        for(size_t i = 0, k = 0; i < X.size(); ++i){
+            for(size_t j = 0; j < X[i].size(); ++j){
                 x[k] = X[i][j];
                 y[k] = Y[i][j];
                 ++k;
@@ -662,7 +663,7 @@ namespace ugks
         Eigen::ArrayXd xdownw = std::get<0>(down_wall_cords);
         // y
         Eigen::ArrayXd ydownw = std::get<1>(down_wall_cords);
-
+        
         fill_mesh(xupw, yupw, xdownw, ydownw);
     }
 
@@ -759,7 +760,7 @@ namespace ugks
 
         // write header
         result << "VARIABLES = X\tY\tRHO\tU\tV\tT\tP\tQX\tQY\n";
-        result << "ZONE  I = " << ysize << ", J = "<< xsize <<" DATAPACKING = BLOCK\n";
+        result << "ZONE  I = " << xsize << ", J = "<< ysize <<" DATAPACKING = BLOCK\n";
 
         for (int i = 0; i < ysize; ++i)
             for (int j = 0; j < xsize; ++j)
