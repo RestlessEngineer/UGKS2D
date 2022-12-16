@@ -24,7 +24,7 @@ int main(int argc, char *argv[]){
 
     //create solver
     ugks::solver ugks_solver(45,45, phys, ugks::precision::SECOND_ORDER, CFL);
-    Eigen::Rotation2D<double> rot(-30./180.*M_PI);
+    Eigen::Rotation2D<double> rot(0./180.*M_PI);
     Eigen::Vector2d p1 = {0.,0.};
     Eigen::Vector2d p2 = {0.,1.};
     Eigen::Vector2d p3 = {1.,1.};
@@ -58,18 +58,17 @@ int main(int argc, char *argv[]){
     param.num_u = 25; 
     param.num_v = 25;
 
-    ugks_solver.set_velocity_space(param, ugks::integration::GAUSS);
+    ugks_solver.set_velocity_space(param, ugks::integration::NEWTON_COTES);
 
     // set boundary condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_boundary(ugks::boundary_side::LEFT, {1.0, 0.0, 0.0, 1.0}, ugks::boundary_type::WALL);
     ugks_solver.set_boundary(ugks::boundary_side::RIGHT, {1.0, 0.0, 0.0, 1.0}, ugks::boundary_type::WALL);
-    ugks_solver.set_boundary(ugks::boundary_side::UP, {1.0, rotu[0], rotu[1], 1.0}, ugks::boundary_type::WALL); 
+    ugks_solver.set_boundary(ugks::boundary_side::UP, {1.0, rotu[0], rotu[1], 1.0}, ugks::boundary_type::MIRROR); 
     ugks_solver.set_boundary(ugks::boundary_side::DOWN, {1.0, 0.0, 0.0, 1.0}, ugks::boundary_type::WALL);
 
     // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_flow_field({1.0, 0.0, 0.0, 1.0});
-    ugks_solver.write_results();
-
+    
     while( true ){
 
         auto sim = ugks_solver.solve();

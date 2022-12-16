@@ -56,21 +56,25 @@ namespace ugks
         Pr = phys.Pr;
     }
     
-    void solver::set_boundary(const Eigen::Array4d bound, boundary type)
+    void solver::set_boundary(boundary_side side, const Eigen::Array4d bound, boundary_type type)
     {
-        switch (type)
+        switch (side)
         {
-        case boundary::LEFT:
+        case boundary_side::LEFT:
             bc_L = bound;
+            bc_typeL = type;
             break;
-        case boundary::RIGHT:
+        case boundary_side::RIGHT:
             bc_R = bound;
+            bc_typeR = type;
             break;
-        case boundary::UP:
+        case boundary_side::UP:
             bc_U = bound;
+            bc_typeU = type;
             break;
-        case boundary::DOWN:
+        case boundary_side::DOWN:
             bc_D = bound;
+            bc_typeD = type;
             break;
         default:
             break;
@@ -82,7 +86,7 @@ namespace ugks
 
         Eigen::Array4d prim; // primary variables
 
-        double tmax = 0.0, sos;
+        double tmax = 0.0, sos = 0.0;
 
         for (int i = 0; i < ysize; ++i)
             for (int j = 0; j < xsize; ++j)
@@ -90,18 +94,24 @@ namespace ugks
 
                 // convert conservative variables to primary variables
                 prim = tools::get_primary(core(i, j).w, gamma);
+                auto& face_right = vface(i,j+1);
+                auto& face_up = hface(i+1,j);
 
                 // sound speed
                 sos = tools::get_sos(prim, gamma);
 
                 // maximum velocity
-                prim[1] = std::max(umax, std::abs(prim[1])) + sos;
-                prim[2] = std::max(vmax, std::abs(prim[2])) + sos;
+                auto u = std::max(umax, std::abs(prim[1])) + sos;
+                auto v = std::max(vmax, std::abs(prim[2])) + sos;
+
+                // projections
+                double U = u*face_right.cosa + v*face_right.sina;
+                double V = u*face_up.cosa + v*face_up.sina; 
 
                 // maximum 1/dt allowed
-                //TODO: make this better
+                //* it will work if cell doesn't have big difformations
                 tmax = std::max(tmax,
-                                (prim[1] + prim[2]) / std::sqrt(core(i, j).area));
+                                (U*face_up.length + V*face_right.length) / core(i, j).area);
             }
 
         // time step
@@ -246,11 +256,10 @@ namespace ugks
                 }
         }
 
-        auto limiter = [](double val){
-            //return val >= 1.5 ? 1 : val - 4./27.*std::pow(val,3);
-            return (val*val + 2*val)/(val*val + val + 2);
-            //return std::min(1., val + 8./27.*std::pow(val,3) - 16./27.*std::pow(val,4) + 16./81.*std::pow(val,5));
-            
+        //TODO: make the reference to the paper!
+        auto limiter = [](double val)
+        {
+            return (val * val + 2 * val) / (val * val + val + 2);
         };
 
         //get limiter coefficient
@@ -324,8 +333,8 @@ namespace ugks
 
         for (int j = 0; j < xsize; ++j)
         {
-            calc_flux_boundary(bc_D, hface(0, j), core(0, j), direction::IDIR, order::DIRECT);
-            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), direction::IDIR, order::REVERSE);
+            calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD, order::DIRECT);
+            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU, order::REVERSE);
         }
         
         for (int i = 1; i < ysize; ++i){
@@ -336,8 +345,8 @@ namespace ugks
         
         for (int i = 0; i < ysize; ++i)
         {
-            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), direction::JDIR, order::DIRECT);
-            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), direction::JDIR, order::REVERSE);
+            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL, order::DIRECT);
+            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR, order::REVERSE);
         }
 
         for (int j = 1; j < xsize; ++j){
@@ -454,28 +463,8 @@ namespace ugks
         
     }
 
-    void solver::set_geometry(const point &ld, const point &lu, const point &ru, const point &rd)
+    void solver::fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw)
     {
-
-        mesh.resize(ysize + 1, xsize + 1);
-
-        // create up wall
-        // x
-        Eigen::ArrayXd xupw(xsize + 1);
-        xupw.setLinSpaced(lu.x, ru.x);
-        // y
-        Eigen::ArrayXd yupw(xsize + 1);
-        yupw.setLinSpaced(lu.y, ru.y);
-
-        // create down wall
-        // x
-        Eigen::ArrayXd xdownw(xsize + 1);
-        xdownw.setLinSpaced(ld.x, rd.x);
-        // y
-        Eigen::ArrayXd ydownw(xsize + 1);
-        ydownw.setLinSpaced(ld.y, rd.y);
-
-        // fill mesh
         for (size_t j = 0; j < xsize + 1; ++j)
         {
             double dx = (xupw[j] - xdownw[j]) / ysize;
@@ -487,7 +476,7 @@ namespace ugks
                 mesh(i, j).y = ydownw[j] + dy * i;
             }
         }
-
+        
         auto leng = [](point p1, point p2) -> double
         {
             return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p2.y - p1.y, 2));
@@ -579,6 +568,106 @@ namespace ugks
             }
     }
 
+    void solver::set_geometry(const point &ld, const point &lu, const point &ru, const point &rd)
+    {
+        
+        mesh.resize(ysize + 1, xsize + 1);
+
+        // create up wall
+        // x
+        Eigen::ArrayXd xupw(xsize + 1);
+        xupw.setLinSpaced(lu.x, ru.x);
+        // y
+        Eigen::ArrayXd yupw(xsize + 1);
+        yupw.setLinSpaced(lu.y, ru.y);
+
+        // create down wall
+        // x
+        Eigen::ArrayXd xdownw(xsize + 1);
+        xdownw.setLinSpaced(ld.x, rd.x);
+        // y
+        Eigen::ArrayXd ydownw(xsize + 1);
+        ydownw.setLinSpaced(ld.y, rd.y);
+
+        fill_mesh(xupw, yupw, xdownw, ydownw);
+    }
+
+    
+    std::tuple<Eigen::ArrayXd, Eigen::ArrayXd> create_wall_coords(const std::vector<point>& wall, size_t wall_size)
+    {
+        std::vector<size_t> fragment_sizes(wall.size() - 1);
+        double xleng = wall.back().x - wall.front().x;
+        double addiction = 0;
+        for(size_t i = 0; i < wall.size() - 1; ++i)
+        {
+            double part_leng = (wall[i+1].x - wall[i].x)/xleng*(wall_size - 1);
+            size_t frag_size = std::round(part_leng + addiction);
+            addiction = part_leng - frag_size;
+            fragment_sizes[i] = frag_size + 1;            
+        }
+
+        std::vector<Eigen::ArrayXd> X(wall.size() - 1);
+        std::vector<Eigen::ArrayXd> Y(wall.size() - 1);
+
+        for (size_t i = 0; i < wall.size() - 1; ++i)
+        {
+            Eigen::ArrayXd x_fragment(fragment_sizes[i]);
+            Eigen::ArrayXd y_fragment(fragment_sizes[i]);
+
+            x_fragment.setLinSpaced(wall[i].x, wall[i + 1].x);
+            y_fragment.setLinSpaced(wall[i].y, wall[i + 1].y);
+            if (i != wall.size() - 2) // last fragment
+            {
+                X[i] = x_fragment(Eigen::seq(0, Eigen::last - 1));
+                Y[i] = y_fragment(Eigen::seq(0, Eigen::last - 1));
+            }
+            else
+            {
+                X[i] = x_fragment;
+                Y[i] = y_fragment;
+            }
+        }
+
+        //concatenate up wall
+        //x
+        Eigen::ArrayXd x(wall_size);
+        //y
+        Eigen::ArrayXd y(wall_size);
+        for(size_t i = 0, k = 0; i < X.size(); ++i){
+            for(size_t j = 0; j < X[i].size(); ++j){
+                x[k] = X[i][j];
+                y[k] = Y[i][j];
+                ++k;
+            }
+        }
+        return {x, y};
+    }
+
+    void solver::set_geometry(const std::vector<point>& up_wall, const std::vector<point>& down_wall)
+    {   
+        if(up_wall.size() < 2 || down_wall.size() < 2)
+            return; //TODO: trow exeption
+
+        mesh.resize(ysize + 1, xsize + 1);
+
+        // create up wall
+        auto up_wall_cords = create_wall_coords(up_wall, xsize + 1);
+        // x
+        Eigen::ArrayXd xupw = std::get<0>(up_wall_cords);
+        // y
+        Eigen::ArrayXd yupw = std::get<1>(up_wall_cords);
+
+        // create down wall
+        auto down_wall_cords = create_wall_coords(down_wall, xsize + 1);
+        // x
+        Eigen::ArrayXd xdownw = std::get<0>(down_wall_cords);
+        // y
+        Eigen::ArrayXd ydownw = std::get<1>(down_wall_cords);
+        
+        fill_mesh(xupw, yupw, xdownw, ydownw);
+    }
+
+
     void solver::set_flow_field(const Eigen::Array4d &init_gas)
     {
 
@@ -656,7 +745,7 @@ namespace ugks
             }
     }
 
-    void solver::write_results() const
+    void solver::write_results(std::string file_name) const
     {
         std::stringstream result;
         Eigen::ArrayXXd X(ysize, xsize);
@@ -671,7 +760,7 @@ namespace ugks
 
         // write header
         result << "VARIABLES = X\tY\tRHO\tU\tV\tT\tP\tQX\tQY\n";
-        result << "ZONE  I = " << ysize << ", J = "<< xsize <<" DATAPACKING = BLOCK\n";
+        result << "ZONE  I = " << xsize << ", J = "<< ysize <<" DATAPACKING = BLOCK\n";
 
         for (int i = 0; i < ysize; ++i)
             for (int j = 0; j < xsize; ++j)
@@ -703,28 +792,50 @@ namespace ugks
                << QY;
 
         std::ofstream resfile;
-        resfile.open ("cavity.dat");
+        resfile.open (file_name.c_str());
         resfile << result.str().c_str();
         resfile.close();
     }
 
+    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type type, int ord)
+    {
+        switch (type)
+        {
+        case boundary_type::WALL:
+            calc_flux_boundary_wall(bc, face, cell, ord);
+            break;
+        case boundary_type::INPUT:
+            calc_flux_boundary_input(bc, face, cell, ord);
+            break;
+        case boundary_type::OUTPUT:
+            calc_flux_boundary_output(bc, face, cell, ord);
+            break;
+        case boundary_type::MIRROR:
+            calc_flux_boundary_mirror(bc, face, cell, ord);
+            break;
+        default:
+            break;
+        }
+    }
 
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face,
-                                    cell cell, direction dir, int order)
+    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
         Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
-        Eigen::ArrayXXd delta(vsize, usize);                                // Heaviside step function
+        Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
 
-        Eigen::Array4d prim;                                                                // boundary condition in local frame
+        Eigen::Array4d prim; // boundary condition in local frame
 
         // convert the micro velocity to local frame
         vn = uspace * face.cosa + vspace * face.sina;
         vt = vspace * face.cosa - uspace * face.sina;
         
-        auto _sign = __sgn(order); //define signature
+        // boundary condition in local frame
+        prim = tools::frame_local(bc, face.cosa, face.sina);
+
+        auto _sign = __sgn(ord); //define signature
 
         // Heaviside step function. The rotation accounts for the right wall
         delta = (Eigen::sign(vn) * _sign + 1) / 2;
@@ -753,6 +864,142 @@ namespace ugks
         // distribution function at the boundary interface
         h = H0 * delta + h * (1 - delta);
         b = B0 * delta + b * (1 - delta);
+
+        // calculate flux
+        face.flux[0] = (weight * vn * h).sum();
+        face.flux[1] = (weight * vn * vn * h).sum();
+        face.flux[2] = (weight * vn * vt * h).sum();
+        face.flux[3] = 0.5 * (weight * vn * ((vn * vn + vt * vt) * h + b)).sum();
+
+        face.flux_h = vn * h;
+        face.flux_b = vn * b;
+
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
+
+        // total flux
+        face.flux = dt * face.length * face.flux;
+        face.flux_h = dt * face.length * face.flux_h;
+        face.flux_b = dt * face.length * face.flux_b;
+    }
+
+    void solver::calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    {
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);             // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);               // distribution function at the interface
+        Eigen::ArrayXXd delta(vsize, usize);                            // Heaviside step function
+
+        Eigen::Array4d prim; // boundary condition in local frame
+
+        // convert the micro velocity to local frame
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
+
+        auto _sign = __sgn(ord); // define signature
+
+        // Heaviside step function. The rotation accounts for the right wall
+        delta = (Eigen::sign(vn) * _sign + 1) / 2;
+
+        // take from normal equation of a line
+        double H = std::abs(cell.x * face.cosa + cell.y * face.sina - face.p);
+        double dx = H * face.cosa;
+        double dy = H * face.sina;
+
+        // obtain h^{in} and b^{in}, rotation accounts for the right wall
+        h = cell.h - _sign * (dx * cell.sh[DX] + dy * cell.sh[DY]);
+        b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
+
+        // distribution function at the boundary interface
+        h = h*(1 - delta);
+        b = b*(1 - delta);
+
+        // double sum1 = (weight * vn * h).sum();
+        // double sum2 = (weight * vn * h_mirror).sum();
+        
+        // calculate flux      
+        face.flux[0] = 0.;
+        
+        face.flux[1] = 2. * (weight * vn * vn * h).sum();
+        face.flux[2] = 0.;
+        
+        face.flux[3] = 0.;
+        
+        face.flux_h = vn * h;
+        face.flux_b = vn * b;
+
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
+
+        // total flux
+        face.flux = dt * face.length * face.flux;
+        face.flux_h = dt * face.length * face.flux_h;
+        face.flux_b = dt * face.length * face.flux_b;
+    }
+
+    void solver::calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    {
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
+        Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize); // Maxwellian distribution function
+        Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
+
+        Eigen::Array4d prim; // boundary condition in local frame
+
+        // convert the micro velocity to local frame
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
+
+        auto _sign = __sgn(ord); // define signature
+
+        // Heaviside step function. The rotation accounts for the right wall
+        delta = (Eigen::sign(vn) * _sign + 1) / 2;
+
+        // boundary condition in local frame
+        prim = tools::frame_local(bc, face.cosa, face.sina);
+
+        // take from normal equation of a line
+        double H = std::abs(cell.x * face.cosa + cell.y * face.sina - face.p);
+        double dx = H * face.cosa;
+        double dy = H * face.sina;
+
+        // obtain h^{in} and b^{in}, rotation accounts for the right wall
+        h = cell.h - _sign * (dx * cell.sh[DX] + dy * cell.sh[DY]);
+        b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
+
+        // get H0, B0
+        tools::maxwell_distribution(H0, B0, vn, vt, prim, DOF);
+
+        // distribution function at the boundary interface
+        h = H0 * delta + h * (1 - delta);
+        b = B0 * delta + b * (1 - delta);
+
+        // calculate flux
+        face.flux[0] = (weight * vn * h).sum();
+        face.flux[1] = (weight * vn * vn * h).sum();
+        face.flux[2] = (weight * vn * vt * h).sum();
+        face.flux[3] = 0.5 * (weight * vn * ((vn * vn + vt * vt) * h + b)).sum();
+
+        face.flux_h = vn * h;
+        face.flux_b = vn * b;
+
+        face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
+
+        // total flux
+        face.flux = dt * face.length * face.flux;
+        face.flux_h = dt * face.length * face.flux_h;
+        face.flux_b = dt * face.length * face.flux_b;
+    }
+
+    void solver::calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    {
+        Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
+        Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
+
+        // convert the micro velocity to local frame
+        vn = uspace * face.cosa + vspace * face.sina;
+        vt = vspace * face.cosa - uspace * face.sina;
+
+        // obtain h^{in} and b^{in}, rotation accounts for the right wall
+        h = cell.h;
+        b = cell.b;
 
         // calculate flux
         face.flux[0] = (weight * vn * h).sum();

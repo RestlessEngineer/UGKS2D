@@ -83,6 +83,7 @@ namespace ugks
         Eigen::Array<cell_interface, -1, -1> vface, hface; // vertical and horizontal interfaces
 
         Eigen::Array4d bc_L, bc_R, bc_U, bc_D; // boundary conditions at LEFT, RIGHT, UP and DOWN boundary
+        boundary_type bc_typeL, bc_typeR, bc_typeU, bc_typeD; //boundary types WALL, INPUT, OUTPUT, MIRROR and others
 
         //* velocity space
         size_t usize = 0, vsize = 0;    // number of velocity points for u and v
@@ -129,9 +130,10 @@ namespace ugks
                const size_t &rows, const size_t &cols);
 
         /// @brief set boundary condition
+        /// @param side what is the boundary (LEFT, RIGHT, UP, DOWN)
         /// @param bound array with boundary values (density,u-velocity,v-velocity,lambda)
-        /// @param type what is the boundary (LEFT, RIGHT, UP, DOWN)
-        void set_boundary(const Eigen::Array4d bound, boundary type);
+        /// @param type boundary type  WALL, INPUT, OUTPUT, MIRROR and others
+        void set_boundary(boundary_side side, const Eigen::Array4d bound, boundary_type type = boundary_type::WALL);
 
         /// @brief initialize the mesh
         /// @param xlength,ylength :domain length in x and y direction
@@ -143,6 +145,12 @@ namespace ugks
         /// @param right_up  right up point of the rectangular
         /// @param right_down  right down point of the rectangular
         void set_geometry(const point &left_down, const point &left_up, const point &right_up, const point &right_down);
+
+        /// @brief initialize the mesh
+        /// @param up_wall left down point of the rectangular
+        /// @param down_wall left up point of the rectangular
+        void set_geometry(const std::vector<point>& up_wall, const std::vector<point>& down_wall);
+
 
         /// @brief set the initial gas condition
         /// @param init_gas initial condition
@@ -170,7 +178,7 @@ namespace ugks
         }
 
         /// @brief writting current results
-        void write_results() const;
+        void write_results(std::string file_name = "cavity.dat") const;
 
     private:
         
@@ -200,9 +208,33 @@ namespace ugks
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        /// @param idx  index indicating i or j direction
-        /// @param order indicating direct or revers order
-        void calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, direction dir, int order);
+        /// @param btype boundary type (WALL, INPUT, OUTPUT, MIRROR)
+        void calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type btype, int side);
+        
+        /// @brief calculate flux of boundary interface
+        /// @param bc   boundary condition
+        /// @param face the boundary interface
+        /// @param cell cell next to the boundary interface
+        void calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        
+        /// @brief calculate flux of boundary for input conditions
+        /// @param bc   boundary condition
+        /// @param face the boundary interface
+        /// @param cell cell next to the boundary interface
+        void calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        
+        /// @brief calculate flux of boundary for output
+        /// @param bc   boundary condition
+        /// @param face the boundary interface
+        /// @param cell cell next to the boundary interface
+        void calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        
+        /// @brief calculate flux of boundary for axisymmetric one
+        /// @param bc   boundary condition
+        /// @param face the boundary interface
+        /// @param cell cell next to the boundary interface
+        void calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+
 
         /// @brief calculate micro slope of Maxwellian distribution
         /// @param prim primary variables
@@ -244,6 +276,13 @@ namespace ugks
         /// @param cell_R cell right to the target interface
         /// @param idx    index indicating i or j direction
         void calc_flux(cell &cell_L, cell_interface &face, cell &cell_R, direction dir);
+
+        /// @brief filling of mesh
+        /// @param xupw x cords of up wall
+        /// @param yupw y cords of up wall
+        /// @param xdownw x cords of down wall 
+        /// @param ydownw y cords of down wall
+        void fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw);
     };
 }
 

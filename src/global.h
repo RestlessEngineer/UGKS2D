@@ -6,6 +6,14 @@
 
 namespace ugks
 {
+    /// @brief order of calculations
+    enum class boundary_type: unsigned char
+    {
+        WALL,
+        INPUT,
+        OUTPUT,
+        MIRROR
+    };
 
     /// @brief order of calculations
     enum class precision : unsigned char
@@ -22,7 +30,7 @@ namespace ugks
     };
 
     /// @brief boundary side 
-    enum class boundary: unsigned char{
+    enum class boundary_side: unsigned char{
         LEFT,
         RIGHT,
         UP,
