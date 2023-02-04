@@ -1,6 +1,5 @@
 #include "tools.h"
 #include <sstream>
-#include <spdlog/sinks/basic_file_sink.h>
 #include <iostream>
 
 namespace ugks

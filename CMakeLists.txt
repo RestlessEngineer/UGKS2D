@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.15)
+cmake_minimum_required(VERSION 2.8.12)
 
 set (CMAKE_CXX_STANDARD 14)
 
@@ -19,6 +19,7 @@ set(HEADER  src/global.h
 			src/tools.h
             src/solver.h)
 
+include_directories(~/libs/Eigen)
 
 add_executable (${PROJECT_NAME} ${SOURCE})
 

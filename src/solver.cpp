@@ -918,13 +918,13 @@ namespace ugks
         // calculate flux      
         face.flux[0] = 0.;
         
-        face.flux[1] = 2. * (weight * vn * vn * h).sum();
+        face.flux[1] = 2 * (weight * vn * vn * h).sum();
         face.flux[2] = 0.;
         
         face.flux[3] = 0.;
         
-        face.flux_h = vn * h;
-        face.flux_b = vn * b;
+        face.flux_h = 0. * vn * h;
+        face.flux_b = 0. * vn * b;
 
         face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
 
