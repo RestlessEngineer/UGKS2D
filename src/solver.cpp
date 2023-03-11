@@ -909,22 +909,37 @@ namespace ugks
         b = cell.b - _sign * (dx * cell.sb[DX] + dy * cell.sb[DY]);
 
         // distribution function at the boundary interface
-        h = h*(1 - delta);
-        b = b*(1 - delta);
+        //  h = h*(1 - delta); 
+        //  b = b*(1 - delta); 
+ 
+        // double sum1 = (weight * vn * h).sum(); 
+        // double sum2 = (weight * vn * h_mirror).sum(); 
+         
+        // calculate flux       
+        face.flux[0] = 0.; 
+         
+        face.flux[1] = 2 * (weight * vn * vn * h*(1 - delta)).sum(); 
+        face.flux[2] = 0.; 
+         
+        face.flux[3] = 0.; 
+         
+        face.flux_h = - vn * h*delta + vn * h*(1 - delta); 
+        face.flux_b = - vn * b*delta + vn * b*(1 - delta);
 
-        // double sum1 = (weight * vn * h).sum();
-        // double sum2 = (weight * vn * h_mirror).sum();
+
+        // h = h*(1 - delta);
+        // b = b*(1 - delta);
+
+        // // calculate flux      
+        // face.flux[0] = 0.;
         
-        // calculate flux      
-        face.flux[0] = 0.;
+        // face.flux[1] = 2 * (weight * vn * vn * h).sum();
+        // face.flux[2] = 0.;
         
-        face.flux[1] = 2 * (weight * vn * vn * h).sum();
-        face.flux[2] = 0.;
+        // face.flux[3] = 0.;
         
-        face.flux[3] = 0.;
-        
-        face.flux_h = 0. * vn * h;
-        face.flux_b = 0. * vn * b;
+        // face.flux_h = 0. * vn * h;
+        // face.flux_b = 0. * vn * b;
 
         face.flux = tools::frame_global(face.flux, face.cosa, face.sina);
 

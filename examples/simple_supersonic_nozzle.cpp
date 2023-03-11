@@ -42,20 +42,20 @@ int main(int argc, char *argv[]){
     double yD    = -yA; 
  
     //set geometry area. box 
-    ugks_solver.set_geometry({{400.*xA, 400.*yA}, {400.*xB, 400.*yB}, {0., 1.*400.}, {400.*1.25, 1.*400.}},\ 
-                             {{400.*xC, 400.*yC}, {400.*xD, 400.*yD}, {0., -1.*400.}, {400.*1.25, -1.*400.}}); 
+    ugks_solver.set_geometry({{1.0*xA, 1.0*yA}, {1.0*xB, 1.0*yB}, {0., 1.* 1.0}, {1.0*1.25, 1. *1.0}},\ 
+                             {{1.0*xC, 1.0*yC}, {1.0*xD, 1.0*yD}, {0., -1.*1.0}, {1.0*1.25, -1.*1.0}}); 
  
     //set velocity space param 
     ugks::vel_space_param param; 
     // largest discrete velocity 
-    param.max_u = 5; 
-    param.max_v = 3; 
+    param.max_u = 5.5; 
+    param.max_v = 5.5; 
     // smallest discrete velocity 
-    param.min_u = -1; 
-    param.min_v = -3; 
+    param.min_u = -3.5; 
+    param.min_v = -3.5; 
     // number of velocity points 
-    param.num_u = 30;  
-    param.num_v = 30; 
+    param.num_u = 40;  
+    param.num_v = 40; 
  
     ugks_solver.set_velocity_space(param, ugks::integration::GAUSS); 
                  
@@ -82,9 +82,15 @@ int main(int argc, char *argv[]){
              "; sitime: "<<sim.sitime <<  
             " dt: "<< sim.dt; 
             std::cout << "; res: "<< sim.res.transpose() << "\r" << std::flush; 
+            bool is_nan = false;
+            for(auto res: sim.res)
+                if(std::isnan(res))
+                    is_nan = true;
+            if(is_nan)
+                break;
         } 
         if( sim.cnt_iter%500 == 0){ 
-            std::cout<<"; write result from "<<sim.cnt_iter<<" iteration in cavity_temple_" + postfix + ".dat"<<std::endl; 
+            std::cout<<"\rwrite result from "<<sim.cnt_iter<<" iteration in cavity_temple_" + postfix + ".dat"<<std::endl; 
             ugks_solver.write_results("cavity_temple_" + postfix + ".dat"); 
         } 
  
