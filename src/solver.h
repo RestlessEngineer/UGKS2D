@@ -179,7 +179,7 @@ namespace ugks
 
         /// @brief writting current results
         void write_results(std::string file_name = "cavity.dat") const;
-
+        
     private:
         
         /// @brief make acquaintances for neighbors
