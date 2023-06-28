@@ -16,7 +16,7 @@ int main(int argc, char *argv[]){
     const double residual = 1e-5; 
     const double CFL = 0.5; // Courantт•±Friedrichsт•±Lewy number 
  
-    const double kn = 0.0025;     // 0.0025 Knudsen number in reference state 
+    const double kn = 1.0;     // 0.0025 Knudsen number in reference state 
     const double alpha_ref = 1.0; // coefficient in HS model 
     const double omega_ref = 0.81; // coefficient in HS model 
  
@@ -28,7 +28,7 @@ int main(int argc, char *argv[]){
     phys.mu_ref = ugks::tools::get_mu(kn, alpha_ref, omega_ref); //reference viscosity coefficient 
      
     //create solver 
-    ugks::solver ugks_solver(331, 300, phys, ugks::precision::FIRST_ORDER, CFL); 
+    ugks::solver ugks_solver(331, 300, phys, ugks::precision::SECOND_ORDER, CFL); 
      
     double Theta = angle/180.*M_PI; 
     double Ma    = 2.0;           
@@ -42,22 +42,22 @@ int main(int argc, char *argv[]){
     double yD    = -yA; 
  
     //set geometry area. box 
-    ugks_solver.set_geometry({{1.0*xA, 1.0*yA}, {1.0*xB, 1.0*yB}, {0., 1.* 1.0}, {1.0*1.25, 1. *1.0}},\ 
-                             {{1.0*xC, 1.0*yC}, {1.0*xD, 1.0*yD}, {0., -1.*1.0}, {1.0*1.25, -1.*1.0}}); 
+    ugks_solver.set_geometry({{400.0*xA, 400.0*yA}, {400.0*xB, 400.0*yB}, {0., 1.* 400.0}, {400.0*1.25, 1. *400.0}},\ 
+                             {{400.0*xC, 400.0*yC}, {400.0*xD, 400.0*yD}, {0., -1.*400.0}, {400.0*1.25, -1.*400.0}}); 
  
     //set velocity space param 
     ugks::vel_space_param param; 
     // largest discrete velocity 
-    param.max_u = 5.5; 
-    param.max_v = 5.5; 
+    param.max_u = 6.5; 
+    param.max_v = 5.0; 
     // smallest discrete velocity 
     param.min_u = -3.5; 
-    param.min_v = -3.5; 
+    param.min_v = -5.0; 
     // number of velocity points 
     param.num_u = 40;  
     param.num_v = 40; 
  
-    ugks_solver.set_velocity_space(param, ugks::integration::GAUSS); 
+    ugks_solver.set_velocity_space(param, ugks::integration::NEWTON_COTES); 
                  
     // set boundary condition (density,u-velocity,v-velocity,lambda=1/temperature) 
     ugks_solver.set_boundary(ugks::boundary_side::LEFT, {1.0, Ma*sqrt(phys.gamma/2.), 0.0, 1.0}, ugks::boundary_type::INPUT); 
@@ -67,7 +67,8 @@ int main(int argc, char *argv[]){
  
     // initial condition (density,u-velocity,v-velocity,lambda=1/temperature) 
     ugks_solver.set_flow_field({1.0, Ma*sqrt(phys.gamma/2.), 0.0, 1.0}); 
-     
+    
+    std::cout<< "init of the task has been completed\n"<<std::endl; 
     while( true ){ 
  
         auto sim = ugks_solver.solve(); 
@@ -77,11 +78,11 @@ int main(int argc, char *argv[]){
         if (*max_res < residual) 
             break; 
  
-        if( sim.cnt_iter%100 == 0){ 
-            std::cout << "\riter: "<< sim.cnt_iter << 
+        if( sim.cnt_iter%10 == 0){ 
+            std::cout << "iter: "<< sim.cnt_iter << 
              "; sitime: "<<sim.sitime <<  
             " dt: "<< sim.dt; 
-            std::cout << "; res: "<< sim.res.transpose() << "\r" << std::flush; 
+            std::cout << "; res: "<< sim.res.transpose() << std::endl; 
             bool is_nan = false;
             for(auto res: sim.res)
                 if(std::isnan(res))
@@ -90,10 +91,10 @@ int main(int argc, char *argv[]){
                 break;
         } 
         if( sim.cnt_iter%500 == 0){ 
-            std::cout<<"\rwrite result from "<<sim.cnt_iter<<" iteration in cavity_temple_" + postfix + ".dat"<<std::endl; 
+            std::cout<<"; write result from "<<sim.cnt_iter<<" iteration in cavity_temple_" + postfix + ".dat"<<std::endl; 
             ugks_solver.write_results("cavity_temple_" + postfix + ".dat"); 
-        } 
- 
+        }
+
     } 
  
     ugks_solver.write_results("cavity_results_" + postfix + ".dat"); 

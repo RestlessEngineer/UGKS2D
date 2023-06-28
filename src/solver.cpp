@@ -797,6 +797,73 @@ namespace ugks
         resfile.close();
     }
 
+    /*
+    void load(std::string file_name)
+    {
+        std::ofstream file;
+        file.open (file_name.c_str());
+
+        file.readline();
+        std::string sizes = file.readline();
+        std::stringstream (sizes);
+
+        auto split = [](std::string sizes) -> std::vector< string> {
+            std::vector<string> res;
+            while (getline(ss, str, ' '))
+                res.push_back(str);
+        }
+
+        std::stringstream result;
+        Eigen::ArrayXXd X(ysize, xsize);
+        Eigen::ArrayXXd Y(ysize, xsize);
+        Eigen::ArrayXXd RHO(ysize, xsize);
+        Eigen::ArrayXXd U(ysize, xsize);
+        Eigen::ArrayXXd V(ysize, xsize);
+        Eigen::ArrayXXd T(ysize, xsize);
+        Eigen::ArrayXXd P(ysize, xsize);
+        Eigen::ArrayXXd QX(ysize, xsize);
+        Eigen::ArrayXXd QY(ysize, xsize);
+
+        // write header
+        result << "VARIABLES = X\tY\tRHO\tU\tV\tT\tP\tQX\tQY\n";
+        result << "ZONE  I = " << xsize << ", J = "<< ysize <<" DATAPACKING = BLOCK\n";
+
+        for (int i = 0; i < ysize; ++i)
+            for (int j = 0; j < xsize; ++j)
+            {
+                // primary variables
+                auto prim = tools::get_primary(core(i, j).w, gamma);
+                auto temp = tools::get_temperature(core(i, j).h, core(i, j).b, uspace, vspace, weight, prim, DOF);
+                auto pressure = 0.5 * temp * prim[0];
+                auto heat = tools::get_heat_flux(core(i, j).h, core(i, j).b, uspace, vspace, weight, prim);
+                X(i, j) = core(i, j).x;
+                Y(i, j) = core(i, j).y;
+                RHO(i, j) = prim[0];
+                U(i, j) = prim[1];
+                V(i, j) = prim[2];
+                T(i, j) = temp;
+                P(i, j) = pressure;
+                QX(i, j) = heat[0];
+                QY(i, j) = heat[1];
+            }
+
+        result << X << '\n'
+               << Y << '\n'
+               << RHO << '\n'
+               << U << '\n'
+               << V << '\n'
+               << T << '\n'
+               << P << '\n'
+               << QX << '\n'
+               << QY;
+
+        std::ofstream resfile;
+        resfile.open (file_name.c_str());
+        resfile << result.str().c_str();
+        resfile.close();
+    }
+    */
+   
     void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type type, int ord)
     {
         switch (type)
@@ -1122,6 +1189,7 @@ namespace ugks
         Eigen::ArrayXXd H0(vsize, usize), B0(vsize, usize);         // Maxwellian distribution function
         Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part of the equilibrium distribution
         Eigen::ArrayXXd sh(vsize, usize), sb(vsize, usize);         // slope of distribution function at the interface
+        Eigen::ArrayXXd shnL(vsize, usize), sbnL(vsize, usize), shnR(vsize, usize), sbnR(vsize, usize);         // slope of distribution function at the interface
         Eigen::ArrayXXd delta(vsize, usize);                                        // Heaviside step function
 
 
@@ -1141,6 +1209,12 @@ namespace ugks
         vn = uspace * face.cosa + vspace * face.sina;
         vt = vspace * face.cosa - uspace * face.sina;
 
+        shnL = cell_L.sh[DX] * face.cosa + cell_L.sh[DY] * face.sina;
+        sbnL = cell_L.sb[DX] * face.cosa + cell_L.sb[DY] * face.sina;
+
+        shnR = cell_R.sh[DX] * face.cosa + cell_R.sh[DY] * face.sina;
+        sbnR = cell_R.sb[DX] * face.cosa + cell_R.sb[DY] * face.sina;
+
         // Heaviside step function
         delta = (Eigen::sign(vn) + 1) / 2;
 
@@ -1159,8 +1233,8 @@ namespace ugks
         b = (cell_L.b + dx_L * cell_L.sb[DX] + dy_L * cell_L.sb[DY]) * delta +
             (cell_R.b - (dx_R * cell_R.sb[DX] + dy_R * cell_R.sb[DY])) * (1 - delta);
 
-        sh = cell_L.sh[dir] * delta + cell_R.sh[dir] * (1 - delta);
-        sb = cell_L.sb[dir] * delta + cell_R.sb[dir] * (1 - delta);
+        sh = shnL * delta + shnR * (1 - delta);
+        sb = sbnL * delta + sbnR * (1 - delta);
 
         // obtain macroscopic variables (local frame)
         // conservative variables w_0
