@@ -1330,17 +1330,17 @@ namespace ugks
         face.flux_b = face.length * face.flux_b;
     }
 
-auto get_num = [](std::string& line, string phys_name) -> double {
+auto get_num = [](std::string& line, std::string phys_name) -> double {
         auto pos = line.find(phys_name);
         double res = 0;
         if(pos != std::string::npos){
-            string num;
+            std::string num;
             auto i = pos + phys_name.size();
-            while(i < line.size() && (std::isdigital(line[i]) || line[i] == '.')){
+            while(i < line.size() && (std::isdigit(line[i]) || line[i] == '.')){
                 num.push_back(line[i]);
                 i++;
             }
-            res = stod(num);
+            res = std::stod(num);
         }
         else
             throw std::invalid_argument("wrong line with physic values!");
@@ -1348,10 +1348,20 @@ auto get_num = [](std::string& line, string phys_name) -> double {
     return res;
 };
 
-physic_val get_physic_from_string(std::string phys_val){    
+physic_val get_physic_from_string(std::string line){
+    
     std::transform(line.begin(), line.end(), line.begin(), [](unsigned char c){
         return std::tolower(c);
     });
+    
+    // delete spaces
+    std::string no_space_line;
+    for(auto& s: line)
+        if(s != ' ')
+            no_space_line.push_back(s);    
+    
+    line = no_space_line;
+
     double kn, alpha_ref, omega_ref;
     double DOF, Pr, omega;
 
@@ -1373,7 +1383,7 @@ physic_val get_physic_from_string(std::string phys_val){
 }
 
 std::tuple<size_t, size_t> get_sizes_from_string(std::string line){
-    std::no_space_line;
+    std::string no_space_line;
     for(auto& s: line)
         if(s != ' ')
             no_space_line.push_back(s);
@@ -1381,13 +1391,13 @@ std::tuple<size_t, size_t> get_sizes_from_string(std::string line){
     size_t rows = std::round(get_num(line, "J="));
     size_t cols = std::round(get_num(line, "I="));
     return {rows, cols};
-}   
+}
 
-auto  get_array_from_stream = 
+auto  get_array_from_stream = \
 [](std::ifstream& fstream, size_t rows, size_t cols){
-    Eigen::ArrayXXd arr(rows, cols)
+    Eigen::ArrayXXd arr(rows, cols);
     arr.resize(rows, cols);
-
+    std::string line;
     for(size_t i = 0; i < rows; ++i){
         if(!getline(fstream, line))
             throw std::range_error("file finished too soon");
@@ -1399,15 +1409,15 @@ auto  get_array_from_stream =
                 num.push_back(line[k++]);
             if(j >= cols)
                 throw std::range_error("amout cols is too big");
-            arr[i][j++] = stod(num);
+            arr(i, j++) = std::stod(num);
             while(k < line.size() && !std::isdigit(line[k]))
                 ++k;
         }           
     }  
     return arr;
-}
+};
 
-void init_by_result(std::string file_name){
+void solver::init_by_result(std::string file_name){
     std::string line;
     std::ifstream fstream(file_name);
     //string with physic values
@@ -1427,8 +1437,35 @@ void init_by_result(std::string file_name){
     //fill mesh
     for(size_t i = 0; i < rows + 1; ++i)
         for(size_t j = 0; j < cols + 1; ++j)
-            mesh[i][j] = {X[i][j], Y[i][j]};
+            mesh(i,j) = {X(i, j), Y(i, j)};
 
+    Eigen::ArrayXXd RHO = get_array_from_stream(fstream, rows, cols);
+    Eigen::ArrayXXd U = get_array_from_stream(fstream, rows, cols);
+    Eigen::ArrayXXd V = get_array_from_stream(fstream, rows, cols);
+    Eigen::ArrayXXd T = get_array_from_stream(fstream, rows, cols);
+
+    Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);
+
+    // initial condition
+    for (int i = 0; i < ysize; ++i)
+        for (int j = 0; j < xsize; ++j)
+        {   
+            // initial condition (density,u-velocity,v-velocity,lambda=1/temperature) 
+            Eigen::Array4d init_gas = {RHO(i, j), U(i, j), V(i, j), 1./T(i, j)};
+            
+            // obtain discretized Maxwellian distribution H and B
+            tools::maxwell_distribution(H, B, uspace, vspace, init_gas, DOF);
+
+            // convert primary variables to conservative variables
+            core(i, j).w = tools::get_conserved(init_gas, gamma);
+            core(i, j).h = H;
+            core(i, j).b = B;
+            core(i, j).sh[direction::IDIR] = 0.0;
+            core(i, j).sh[direction::JDIR] = 0.0;
+            core(i, j).sb[direction::IDIR] = 0.0;
+            core(i, j).sb[direction::JDIR] = 0.0;
+
+        }
 
 
     fstream.close();
