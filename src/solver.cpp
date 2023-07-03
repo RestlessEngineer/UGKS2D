@@ -1338,6 +1338,7 @@ auto get_num = [](std::string& line, string phys_name) -> double {
             auto i = pos + phys_name.size();
             while(i < line.size() && (std::isdigital(line[i]) || line[i] == '.')){
                 num.push_back(line[i]);
+                i++;
             }
             res = stod(num);
         }
@@ -1382,6 +1383,29 @@ std::tuple<size_t, size_t> get_sizes_from_string(std::string line){
     return {rows, cols};
 }   
 
+auto  get_array_from_stream = 
+[](std::ifstream& fstream, size_t rows, size_t cols){
+    Eigen::ArrayXXd arr(rows, cols)
+    arr.resize(rows, cols);
+
+    for(size_t i = 0; i < rows; ++i){
+        if(!getline(fstream, line))
+            throw std::range_error("file finished too soon");
+        int k = 0;
+        int j = 0;
+        while(k < line.size()){
+            std::string num;
+            while(k < line.size() && std::isdigit(line[k]) || line[k] == '-' || line[k] == '.')
+                num.push_back(line[k++]);
+            if(j >= cols)
+                throw std::range_error("amout cols is too big");
+            arr[i][j++] = stod(num);
+            while(k < line.size() && !std::isdigit(line[k]))
+                ++k;
+        }           
+    }  
+    return arr;
+}
 
 void init_by_result(std::string file_name){
     std::string line;
@@ -1394,8 +1418,18 @@ void init_by_result(std::string file_name){
     //string with sizes
     getline(fstream, line);
     auto [rows, cols] = get_sizes_from_string(line);
-
+    //reallocate memory
     solver(rows, cols, phys);
+
+    Eigen::ArrayXXd X = get_array_from_stream(fstream, rows + 1, cols + 1); 
+    Eigen::ArrayXXd Y = get_array_from_stream(fstream, rows + 1, cols + 1);
+    
+    //fill mesh
+    for(size_t i = 0; i < rows + 1; ++i)
+        for(size_t j = 0; j < cols + 1; ++j)
+            mesh[i][j] = {X[i][j], Y[i][j]};
+
+
 
     fstream.close();
 }
