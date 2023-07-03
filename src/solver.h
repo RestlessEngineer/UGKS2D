@@ -179,6 +179,10 @@ namespace ugks
 
         /// @brief writting current results
         void write_results(std::string file_name = "cavity.dat") const;
+
+        /// @brief filling inner values from file
+        /// @param file_name file with results
+        void init_by_result(std::string file_name);
         
     private:
         

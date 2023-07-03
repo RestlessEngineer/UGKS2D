@@ -6,6 +6,7 @@
 #include <float.h>
 #include <limits>
 #include <omp.h>
+#include <cctype>
 
 //*******************************************************
 // coordinate system                                    *
@@ -1328,5 +1329,75 @@ namespace ugks
         face.flux_h = face.length * face.flux_h;
         face.flux_b = face.length * face.flux_b;
     }
+
+auto get_num = [](std::string& line, string phys_name) -> double {
+        auto pos = line.find(phys_name);
+        double res = 0;
+        if(pos != std::string::npos){
+            string num;
+            auto i = pos + phys_name.size();
+            while(i < line.size() && (std::isdigital(line[i]) || line[i] == '.')){
+                num.push_back(line[i]);
+            }
+            res = stod(num);
+        }
+        else
+            throw std::invalid_argument("wrong line with physic values!");
+    
+    return res;
+};
+
+physic_val get_physic_from_string(std::string phys_val){    
+    std::transform(line.begin(), line.end(), line.begin(), [](unsigned char c){
+        return std::tolower(c);
+    });
+    double kn, alpha_ref, omega_ref;
+    double DOF, Pr, omega;
+
+    kn = get_num(line, "kn=");
+    alpha_ref = get_num(line, "alpha_ref=");
+    omega_ref = get_num(line, "omega_ref="); 
+    DOF = get_num(line, "dof=");
+    Pr = get_num(line, "pr=");
+    omega = get_num(line, "omega=");
+
+    ugks::physic_val phys;
+    phys.DOF = DOF; 
+    phys.gamma = ugks::tools::get_gamma(phys.DOF); //ratio of specific heat 
+    phys.Pr = Pr; 
+    phys.omega = omega; 
+    phys.mu_ref = ugks::tools::get_mu(kn, alpha_ref, omega_ref); //reference viscosity coefficient 
+    
+    return phys;
+}
+
+std::tuple<size_t, size_t> get_sizes_from_string(std::string line){
+    std::no_space_line;
+    for(auto& s: line)
+        if(s != ' ')
+            no_space_line.push_back(s);
+
+    size_t rows = std::round(get_num(line, "J="));
+    size_t cols = std::round(get_num(line, "I="));
+    return {rows, cols};
+}   
+
+
+void init_by_result(std::string file_name){
+    std::string line;
+    std::ifstream fstream(file_name);
+    //string with physic values
+    getline(fstream, line);
+    physic_val phys =  get_physic_from_string(line);
+    //string with variables
+    getline(fstream, line);
+    //string with sizes
+    getline(fstream, line);
+    auto [rows, cols] = get_sizes_from_string(line);
+
+    solver(rows, cols, phys);
+
+    fstream.close();
+}
 
 }
