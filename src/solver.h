@@ -180,12 +180,21 @@ namespace ugks
         /// @brief writting current results
         void write_results(std::string file_name = "cavity.dat") const;
 
+        /// @brief saving mesh
+        /// @param file_name mesh name 
+        void write_mesh(std::string file_name = "mesh.dat") const;
+
         /// @brief filling inner values from file
         /// @param file_name file with results
-        void init_by_result(std::string file_name);
-        
+        void init_inner_values_by_result(std::string file_name);
+
     private:
         
+        /// @brief allocate all inner structures and arrays
+        /// @param rows count of rows
+        /// @param cols count of cols
+        void allocate_memory(const size_t &rows, const size_t &cols);
+
         /// @brief make acquaintances for neighbors
         void associate_neighbors();
 
