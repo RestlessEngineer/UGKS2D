@@ -3,6 +3,9 @@
 
 #include "global.h"
 #include <math.h>
+#ifdef DO_PROFILIZE
+    #include <iostream>
+#endif
 
 //*******************************************************
 // coordinate system                                    *
@@ -166,10 +169,40 @@ namespace ugks
         inline simulation_val solve()
         {
 
+            #ifdef DO_PROFILIZE
+                double itime, ftime;
+                itime = omp_get_wtime();
+            #endif
+
             timestep();         // calculate time step
+            
+            #ifdef DO_PROFILIZE
+                ftime = omp_get_wtime();
+                std::cout<<"perform time: timestep "<< ftime - itime <<" ";
+                itime = omp_get_wtime();
+            #endif
+
             interpolation();    // calculate the slope of distribution function
+
+            #ifdef DO_PROFILIZE
+                ftime = omp_get_wtime();
+                std::cout<<"interpolation "<< ftime - itime <<" ";
+                itime = omp_get_wtime();     
+            #endif
+
             flux_calculation(); // calculate flux across the interfaces
+            #ifdef DO_PROFILIZE
+                ftime = omp_get_wtime();
+                std::cout<<"flux calculation "<< ftime - itime <<" ";
+                itime = omp_get_wtime();     
+            #endif
+
             update();           // update cell averaged value
+
+            #ifdef DO_PROFILIZE
+                ftime = omp_get_wtime();
+                std::cout<<"update "<< ftime - itime <<"\n";
+            #endif
 
             cnt_iter++;
             sitime += dt;

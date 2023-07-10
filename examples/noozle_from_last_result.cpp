@@ -17,14 +17,21 @@ int main(int argc, char *argv[]){
         std::cout<<"wrong file type\n";
         return -1;
     }
+    int number_of_threads = 1;
+    if(argc > 2){
+        number_of_threads = std::stoi(argv[2]);
+    }
 
+    std::cout<<"results is written from" <<path_to_results<<", count threads: "<<number_of_threads<<std::endl;
+    omp_set_num_threads(number_of_threads);
+    
     std::string postfix = "";
     auto pos = pos_end - 1;
     while(pos >= 0 && (std::isdigit(path_to_results[pos]) || path_to_results[pos] == '.'))
         postfix = path_to_results[pos--] + postfix;
 
     const double residual = 1e-5; 
-    const double CFL = 0.5; // Courantт•±Friedrichsт•±Lewy number 
+    const double CFL = 0.8; // Courantт•±Friedrichsт•±Lewy number 
  
    
     ugks::physic_val phys;
