@@ -20,6 +20,7 @@ set(HEADER  ${SRC_DIR}/global.h
 
 add_executable(ugks_box box.cpp ${SOURCE})
 add_executable(ugks_nozzle simple_supersonic_nozzle.cpp ${SOURCE})
+add_executable(ugks_nozzle_start_from_results noozle_from_last_result.cpp ${SOURCE})
 
 target_include_directories(
         ugks_box 
@@ -28,6 +29,12 @@ target_include_directories(
 )
 target_include_directories(
         ugks_nozzle 
+        PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_include_directories(
+        ugks_nozzle_start_from_results 
         PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )

@@ -6,6 +6,7 @@
 #include <float.h>
 #include <limits>
 #include <omp.h>
+#include <cctype>
 
 //*******************************************************
 // coordinate system                                    *
@@ -40,10 +41,7 @@ namespace ugks
     {
         assert(rows > 2 && cols > 2);
 
-        core.resize(ysize, xsize);      // cell centers
-        vface.resize(ysize, xsize + 1); // vertical cell interface
-        hface.resize(ysize + 1, xsize);
-
+        allocate_memory(rows, cols);
         associate_neighbors();
     }
 
@@ -118,6 +116,15 @@ namespace ugks
         dt = CFL / tmax;
     }
 
+    void solver::allocate_memory(const size_t &rows, const size_t &cols){
+        ysize = rows;
+        xsize = cols;
+        core.resize(ysize, xsize);      // cell centers
+        vface.resize(ysize, xsize + 1); // vertical cell interface
+        hface.resize(ysize + 1, xsize);
+        mesh.resize(ysize + 1, xsize + 1);
+        
+    }
     void solver::associate_neighbors(){
         // associate neighbors
         // boundaries
@@ -797,6 +804,33 @@ namespace ugks
         resfile.close();
     }
 
+
+    void solver::write_mesh(std::string file_name) const
+    {
+        std::stringstream result;
+        Eigen::ArrayXXd X(ysize + 1, xsize + 1);
+        Eigen::ArrayXXd Y(ysize + 1, xsize + 1);
+
+        // write header
+        result << "ZONE  I = " << xsize + 1 << ", J = "<< ysize + 1 <<" DATAPACKING = BLOCK\n";
+        for (int i = 0; i < ysize + 1; ++i)
+            for (int j = 0; j < xsize + 1; ++j)
+            {
+                X(i, j) = mesh(i, j).x;
+                Y(i, j) = mesh(i, j).y;
+            }
+
+        result << X << '\n'
+               << Y;
+
+        std::ofstream resfile;
+        resfile.open (file_name.c_str());
+        resfile << result.str().c_str();
+        resfile.close();
+    }
+
+
+
     /*
     void load(std::string file_name)
     {
@@ -1328,5 +1362,190 @@ namespace ugks
         face.flux_h = face.length * face.flux_h;
         face.flux_b = face.length * face.flux_b;
     }
+
+auto get_num = [](std::string& line, std::string phys_name) -> double {
+        auto pos = line.find(phys_name);
+        double res = 0;
+        if(pos != std::string::npos){
+            std::string num;
+            auto i = pos + phys_name.size();
+            while(i < line.size() && (std::isdigit(line[i]) || line[i] == '.' || line[i] == '-')){
+                num.push_back(line[i]);
+                i++;
+            }
+            res = std::stod(num);
+        }
+        else
+            throw std::invalid_argument("wrong line with physic values!");
+    
+    return res;
+};
+
+physic_val get_physic_from_string(std::string line){
+    
+    std::transform(line.begin(), line.end(), line.begin(), [](unsigned char c){
+        return std::tolower(c);
+    });
+    
+    // delete spaces
+    std::string no_space_line;
+    for(auto& s: line)
+        if(s != ' ')
+            no_space_line.push_back(s);    
+    
+    line = no_space_line;
+
+    double kn, alpha_ref, omega_ref;
+    double DOF, Pr, omega;
+
+    kn = get_num(line, "kn=");
+    alpha_ref = get_num(line, "alpha_ref=");
+    omega_ref = get_num(line, "omega_ref="); 
+    DOF = get_num(line, "dof=");
+    Pr = get_num(line, "pr=");
+    omega = get_num(line, "omega=");
+
+    ugks::physic_val phys;
+    phys.DOF = DOF; 
+    phys.gamma = ugks::tools::get_gamma(phys.DOF); //ratio of specific heat 
+    phys.Pr = Pr; 
+    phys.omega = omega; 
+    phys.mu_ref = ugks::tools::get_mu(kn, alpha_ref, omega_ref); //reference viscosity coefficient 
+    
+    return phys;
+}
+
+std::tuple<size_t, size_t> get_sizes_from_string(std::string line){
+    std::string no_space_line;
+    for(auto& s: line)
+        if(s != ' ')
+            no_space_line.push_back(s);
+
+    line = no_space_line;
+    size_t rows = std::round(get_num(line, "J="));
+    size_t cols = std::round(get_num(line, "I="));
+    return {rows, cols};
+}
+
+auto  get_array_from_stream = \
+[](std::ifstream& fstream, size_t rows, size_t cols){
+    Eigen::ArrayXXd arr(rows, cols);
+    arr.resize(rows, cols);
+    std::string line;
+    for(size_t i = 0; i < rows; ++i){
+        if(!getline(fstream, line))
+            throw std::range_error("file finished too soon");
+        int k = 0;
+        int j = 0;
+        
+        //delete first space symbols
+        while(k < line.size() && !std::isdigit(line[k]) && line[k] != '-')
+                ++k;
+        
+        while(k < line.size()){
+            std::string num;
+            while(k < line.size() && (std::isdigit(line[k]) || line[k] == 'e' || line[k] == '-' || line[k] == '.'))
+                num.push_back(line[k++]);
+            if(j >= cols)
+                throw std::range_error("amout cols is too big");
+            arr(i, j++) = std::stod(num);
+            while(k < line.size() && !std::isdigit(line[k]) && line[k] != '-')
+                ++k;
+        }           
+    }  
+    return arr;
+};
+
+
+vel_space_param get_velocity_space_from_string(std::string line){
+    
+    std::transform(line.begin(), line.end(), line.begin(), [](unsigned char c){
+        return std::tolower(c);
+    });
+    
+    // delete spaces
+    std::string no_space_line;
+    for(auto& s: line)
+        if(s != ' ')
+            no_space_line.push_back(s);    
+    
+    line = no_space_line;
+
+    vel_space_param velocity_param;
+
+    velocity_param.max_u = get_num(line, "max_u=");
+    velocity_param.min_u = get_num(line, "min_u=");
+    velocity_param.max_v = get_num(line, "max_v=");
+    velocity_param.min_v = get_num(line, "min_v=");
+    velocity_param.num_u = get_num(line, "num_v=");
+    velocity_param.num_v = get_num(line, "num_v=");
+
+    return velocity_param;
+}
+
+void solver::init_inner_values_by_result(std::string file_name){
+    std::string line;
+    std::ifstream fstream(file_name);
+    //string with physic values
+    getline(fstream, line);
+    physic_val phys =  get_physic_from_string(line);
+    //string with velocity space param
+    getline(fstream, line);
+    vel_space_param param = get_velocity_space_from_string(line);
+
+    //string with variables
+    getline(fstream, line);
+    //string with sizes
+    getline(fstream, line);
+    auto [rows, cols] = get_sizes_from_string(line);
+    //reallocate memory
+    allocate_memory(rows, cols);
+    associate_neighbors();
+    
+    //TODO: fix this shit
+    gamma = phys.gamma;
+    DOF = phys.DOF;
+    mu_ref = phys.mu_ref;
+    omega = phys.omega;
+    Pr = phys.Pr;
+
+    set_velocity_space(param);
+    
+    //pass X,Y coords
+    get_array_from_stream(fstream, rows, cols); 
+    get_array_from_stream(fstream, rows, cols);
+
+
+    Eigen::ArrayXXd RHO = get_array_from_stream(fstream, rows, cols);
+    Eigen::ArrayXXd U = get_array_from_stream(fstream, rows, cols);
+    Eigen::ArrayXXd V = get_array_from_stream(fstream, rows, cols);
+    Eigen::ArrayXXd T = get_array_from_stream(fstream, rows, cols);
+
+    Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);
+
+    // initial condition
+    for (int i = 0; i < ysize; ++i)
+        for (int j = 0; j < xsize; ++j)
+        {   
+            // initial condition (density,u-velocity,v-velocity,lambda=1/temperature) 
+            Eigen::Array4d init_gas = {RHO(i, j), U(i, j), V(i, j), 1./T(i, j)};
+            
+            // obtain discretized Maxwellian distribution H and B
+            tools::maxwell_distribution(H, B, uspace, vspace, init_gas, DOF);
+
+            // convert primary variables to conservative variables
+            core(i, j).w = tools::get_conserved(init_gas, gamma);
+            core(i, j).h = H;
+            core(i, j).b = B;
+            core(i, j).sh[direction::IDIR] = 0.0;
+            core(i, j).sh[direction::JDIR] = 0.0;
+            core(i, j).sb[direction::IDIR] = 0.0;
+            core(i, j).sb[direction::JDIR] = 0.0;
+
+        }
+
+
+    fstream.close();
+}
 
 }
