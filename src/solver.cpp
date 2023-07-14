@@ -342,28 +342,29 @@ namespace ugks
 
     void solver::flux_calculation()
     {      
-
+        
+        #pragma omp parallel for
         for (int j = 0; j < xsize; ++j)
         {
             calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD, order::DIRECT);
             calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU, order::REVERSE);
         }
-        
-        for (int i = 1; i < ysize; ++i){
-            #pragma omp parallel for
-            for (int j = 0; j < xsize; ++j)
+
+        #pragma omp parallel for collapse(2)
+        for (int j = 0; j < xsize; ++j)
+            for (int i = 1; i < ysize; ++i)
                 calc_flux(core(i - 1, j), hface(i, j), core(i, j), direction::IDIR);
-        }
         
+        #pragma omp parallel for
         for (int i = 0; i < ysize; ++i)
         {
             calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL, order::DIRECT);
             calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR, order::REVERSE);
         }
 
+        #pragma omp parallel for collapse(2)    
         for (int j = 1; j < xsize; ++j){
-            #pragma omp parallel for
-            for (int i = 0; i < ysize; ++i)
+           for (int i = 0; i < ysize; ++i)
                 calc_flux(core(i, j - 1), vface(i, j), core(i, j), direction::JDIR);
         }
     }
