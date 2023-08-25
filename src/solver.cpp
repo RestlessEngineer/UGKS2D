@@ -82,38 +82,42 @@ namespace ugks
     void solver::timestep()
     {
 
-        Eigen::Array4d prim; // primary variables
-
-        double tmax = 0.0, sos = 0.0;
-
-        for (int i = 0; i < ysize; ++i)
-            for (int j = 0; j < xsize; ++j)
+        double tmax = 0.0;
+        #pragma omp parallel for reduction(max: tmax) collapse(2) 
+        for (int j = 0; j < xsize; ++j)
+            for (int i = 0; i < ysize; ++i)
             {
 
                 // convert conservative variables to primary variables
-                prim = tools::get_primary(core(i, j).w, gamma);
-                auto& face_right = vface(i,j+1);
-                auto& face_up = hface(i+1,j);
+                const auto prim = tools::get_primary(core(i, j).w, gamma);
+                const auto& face_right = vface(i,j+1);
+                const auto& face_up = hface(i+1,j);
 
                 // sound speed
-                sos = tools::get_sos(prim, gamma);
+                const auto sos = tools::get_sos(prim, gamma);
 
                 // maximum velocity
-                auto u = std::max(umax, std::abs(prim[1])) + sos;
-                auto v = std::max(vmax, std::abs(prim[2])) + sos;
+                const auto u = std::max(umax, std::abs(prim[1])) + sos;
+                const auto v = std::max(vmax, std::abs(prim[2])) + sos;
 
                 // projections
-                double U = u*face_right.cosa + v*face_right.sina;
-                double V = u*face_up.cosa + v*face_up.sina; 
+                const double U = u*face_right.cosa + v*face_right.sina;
+                const double V = u*face_up.cosa + v*face_up.sina; 
 
-                // maximum 1/dt allowed
-                //* it will work if cell doesn't have big difformations
-                tmax = std::max(tmax,
-                                (U*face_up.length + V*face_right.length) / core(i, j).area);
+                #pragma omp critical
+                {
+                    // maximum 1/dt allowed
+                    //* it will work if cell doesn't have big difformations
+                    tmax = std::max(tmax,
+                                    (U*face_up.length + V*face_right.length) / core(i, j).area);
+                }
             }
-
+        
         // time step
         dt = CFL / tmax;
+
+
+
     }
 
     void solver::allocate_memory(const size_t &rows, const size_t &cols){
@@ -205,8 +209,9 @@ namespace ugks
         if (siorder == precision::FIRST_ORDER)
             return;
 
-        for (size_t i = 0; i < ysize; ++i)
-            for (size_t j = 0; j < xsize; ++j)
+        #pragma omp parallel for collapse(2)
+        for (size_t j = 0; j < xsize; ++j)  
+            for (size_t i = 0; i < ysize; ++i)
                 // solve LLS
                 least_square_solver(core(i, j));
     }
@@ -250,7 +255,7 @@ namespace ugks
 
         //LIMITERS:
         //for neighbors
-        for (auto &neighbor : core.neighbors)
+        for (const auto &neighbor : core.neighbors)
         {
             for (size_t i = 0; i < vsize; ++i)
                 for (size_t j = 0; j < usize; ++j)
@@ -275,7 +280,7 @@ namespace ugks
             {
                 double minCoeffH = 1.;
                 double minCoeffB = 1.;
-                for (auto &neighbor : core.neighbors)
+                for (const auto &neighbor : core.neighbors)
                 {
                     double coH = 1, coB = 1;
                     if (neighbor->h(i, j) > core.h(i, j))
@@ -337,81 +342,86 @@ namespace ugks
 
     void solver::flux_calculation()
     {      
-
+        
+        #pragma omp parallel for
         for (int j = 0; j < xsize; ++j)
         {
             calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD, order::DIRECT);
             calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU, order::REVERSE);
         }
-        
-        for (int i = 1; i < ysize; ++i){
-            #pragma omp parallel for
-            for (int j = 0; j < xsize; ++j)
+
+        #pragma omp parallel for collapse(2)
+        for (int j = 0; j < xsize; ++j)
+            for (int i = 1; i < ysize; ++i)
                 calc_flux(core(i - 1, j), hface(i, j), core(i, j), direction::IDIR);
-        }
         
+        #pragma omp parallel for
         for (int i = 0; i < ysize; ++i)
         {
             calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL, order::DIRECT);
             calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR, order::REVERSE);
         }
 
+        #pragma omp parallel for collapse(2)    
         for (int j = 1; j < xsize; ++j){
-            #pragma omp parallel for
-            for (int i = 0; i < ysize; ++i)
+           for (int i = 0; i < ysize; ++i)
                 calc_flux(core(i, j - 1), vface(i, j), core(i, j), direction::JDIR);
         }
     }
-
+    
     void solver::update()
     {
         Eigen::ArrayXXd H_old(vsize, usize), B_old(vsize, usize);   // equilibrium distribution at t=t^n
         Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);           // equilibrium distribution at t=t^{n+1}
         Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part
-        Eigen::Array4d w_old;                                                                       // conservative variables at t^n
-        Eigen::Array4d prim_old, prim;                                                              // primary variables at t^n and t^{n+1}
         Eigen::Array4d sum_res, sum_avg;
-        std::array<double, 2> qf;
-        double tau_old, tau; // collision time and t^n and t^{n+1}
 
         // set initial value
         res = {0.0};
 
-        for (int i = 0; i < ysize; ++i)
-            for (int j = 0; j < xsize; ++j)
+        #pragma omp declare reduction\
+            (+:Eigen::Array4d:omp_out=omp_out+omp_in)\
+            initializer(omp_priv=Eigen::Array4d::Zero())
+
+        #pragma omp parallel for collapse(2) firstprivate(H_old, B_old, H, B, H_plus, B_plus) reduction(+: sum_res) reduction(+: sum_avg)
+        for (int j = 0; j < xsize; ++j)
+            for (int i = 0; i < ysize; ++i)
             {
                 // store W^n and calculate H^n,B^n,\tau^n
-                w_old = core(i, j).w; // store W^n
+                const Eigen::Array4d w_old = core(i, j).w; // store W^n
 
-                prim_old = tools::get_primary(w_old, gamma);                                              // convert to primary variables
+                const Eigen::Array4d prim_old = tools::get_primary(w_old, gamma);                                              // convert to primary variables
                 tools::maxwell_distribution(H_old, B_old, uspace, vspace, prim_old, DOF); // calculate Maxwellian
-                tau_old = tools::get_tau(prim_old, mu_ref, omega);                                        // calculate collision time \tau^n
+                double tau_old = tools::get_tau(prim_old, mu_ref, omega);                                        // calculate collision time \tau^n
 
                 // update W^{n+1} and calculate H^{n+1},B^{n+1},\tau^{n+1}
                 core(i, j).w = core(i, j).w + (vface(i, j).flux - vface(i, j + 1).flux + hface(i, j).flux - hface(i + 1, j).flux) /
                                                   core(i, j).area; // update W^{n+1}
 
-                prim = tools::get_primary(core(i, j).w, gamma);
+                const Eigen::Array4d prim = tools::get_primary(core(i, j).w, gamma);
                 tools::maxwell_distribution(H, B, uspace, vspace, prim, DOF);
-                tau = tools::get_tau(prim, mu_ref, omega);
+                double tau = tools::get_tau(prim, mu_ref, omega);
 
-                // record residual
-                sum_res = sum_res + (w_old - core(i, j).w) * (w_old - core(i, j).w);
-                sum_avg = sum_avg + core(i, j).w.abs();
+                #pragma omp critical
+                {
+                    // record residual
+                    sum_res += (w_old - core(i, j).w) * (w_old - core(i, j).w);
+                    sum_avg += core(i, j).w.abs();
+                }
 
                 // Shakhov part
                 // heat flux at t=t^n
-                qf = tools::get_heat_flux(core(i, j).h, core(i, j).b, uspace, vspace, weight, prim_old);
+                const auto qf = tools::get_heat_flux(core(i, j).h, core(i, j).b, uspace, vspace, weight, prim_old);
 
                 // h^+ = H+H^+ at t=t^n
                 tools::shakhov_part(H_plus, B_plus, H_old, B_old, uspace, vspace, qf, prim_old, Pr, DOF); // H^+ and B^+
-                H_old = H_old + H_plus;                                                                                   // h^+
-                B_old = B_old + B_plus;                                                                                   // b^+
+                H_old += H_plus;                                                                                   // h^+
+                B_old += B_plus;                                                                                   // b^+
 
                 // h^+ = H+H^+ at t=t^{n+1}
                 tools::shakhov_part(H_plus, B_plus, H, B, uspace, vspace, qf, prim, Pr, DOF);
-                H = H + H_plus;
-                B = B + B_plus;
+                H += H_plus;
+                B += B_plus;
 
                 // update distribution function
                 core(i, j).h = (core(i, j).h + (vface(i, j).flux_h - vface(i, j + 1).flux_h + hface(i, j).flux_h - hface(i + 1, j).flux_h) / core(i, j).area +

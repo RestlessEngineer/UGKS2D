@@ -8,11 +8,21 @@
 
 int main(int argc, char *argv[]){
 
+    int num_threads = 1;
     if(argc < 2){
         std::cout<<"wrong amount of arguments";
         return -1;
     }
-    auto KN =  std::stof(argv[1]);
+    else if(argc > 2){
+        num_threads = std::stoi(argv[2]);
+    }
+
+    auto KN =  std::stod(argv[1]);
+
+    std::cout<<"count threads: "<<num_threads<<std::endl;
+    omp_set_num_threads(num_threads);
+
+
     std::string postfix = argv[1];
 
     const double residual = 1e-5;
@@ -31,7 +41,7 @@ int main(int argc, char *argv[]){
     phys.mu_ref = ugks::tools::get_mu(kn, alpha_ref, omega_ref); //reference viscosity coefficient
 
     //create solver
-    ugks::solver ugks_solver(45,45, phys, ugks::precision::SECOND_ORDER, CFL);
+    ugks::solver ugks_solver(45, 45, phys, ugks::precision::SECOND_ORDER, CFL);
     Eigen::Rotation2D<double> rot(0./180.*M_PI);
     Eigen::Vector2d p1 = {0.,0.};
     Eigen::Vector2d p2 = {0.,1.};
@@ -77,10 +87,24 @@ int main(int argc, char *argv[]){
     // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_flow_field({1.0, 0.0, 0.0, 1.0});
 
+    #ifdef DO_PROFILIZE
+        double itime, ftime;
+    #endif
+
     while( true ){ 
- 
+    
+    #ifdef DO_PROFILIZE
+        itime = omp_get_wtime();
+    #endif
+        
         auto sim = ugks_solver.solve(); 
- 
+    
+    #ifdef DO_PROFILIZE
+        ftime = omp_get_wtime();
+        std::cout<<"\nsolver perform time: "<< ftime - itime << std::endl;
+    #endif
+    
+
         auto max_res = std::max_element(sim.res.begin(), sim.res.end()); 
         //check if exit 
         if (*max_res < residual) 
@@ -90,7 +114,7 @@ int main(int argc, char *argv[]){
             std::cout << "iter: "<< sim.cnt_iter << 
              "; sitime: "<<sim.sitime <<  
             " dt: "<< sim.dt; 
-            std::cout << "; res: "<< sim.res.transpose() << "\r" << std::flush; 
+            std::cout << "; res: "<< sim.res.transpose() << std::endl; 
             
             for(auto res: sim.res)
                 if(std::isnan(res)){
