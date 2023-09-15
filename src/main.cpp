@@ -58,7 +58,7 @@ int main(int argc, char *argv[]){
     param.num_u = 25; 
     param.num_v = 25;
 
-    ugks_solver.set_velocity_space(param, ugks::integration::GAUSS);
+    ugks_solver.set_velocity_space(param, ugks::integration::NEWTON_COTES);
 
     // set boundary condition (density,u-velocity,v-velocity,lambda=1/temperature)
     ugks_solver.set_boundary(ugks::boundary_side::LEFT, {1.0, 0.0, 0.0, 1.0}, ugks::boundary_type::WALL);
@@ -75,6 +75,15 @@ int main(int argc, char *argv[]){
         auto sim = ugks_solver.solve();
 
         auto max_res = std::max_element(sim.res.begin(), sim.res.end());
+
+        //check is nan
+        bool is_nan = false;
+        std::for_each(sim.res.begin(), sim.res.end(), [&is_nan](auto val){ is_nan = is_nan || std::isnan(val);});
+        if(is_nan){
+            std::cout << "nan was detected; res: "<< sim.res.transpose() << std::endl;
+            return -1;
+        }
+
         //check if exit
         if (*max_res < residual)
             break;
@@ -83,7 +92,7 @@ int main(int argc, char *argv[]){
             std::cout << "iter: "<< sim.cnt_iter <<
              " sitime: "<<sim.sitime << 
             " dt: "<< sim.dt << std::endl;
-            std::cout << "res: "<< sim.res << std::endl;
+            std::cout << "res: "<< sim.res.transpose() << std::endl;
         }
     }
 

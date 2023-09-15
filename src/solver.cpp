@@ -374,10 +374,10 @@ namespace ugks
         Eigen::ArrayXXd H_old(vsize, usize), B_old(vsize, usize);   // equilibrium distribution at t=t^n
         Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);           // equilibrium distribution at t=t^{n+1}
         Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part
-        Eigen::Array4d sum_res, sum_avg;
+        Eigen::Array4d sum_res = Eigen::Array4d::Zero(), sum_avg = Eigen::Array4d::Zero();
 
         // set initial value
-        res = {0.0};
+        res = Eigen::Array4d::Zero();
 
         #pragma omp declare reduction\
             (+:Eigen::Array4d:omp_out=omp_out+omp_in)\
@@ -762,7 +762,7 @@ namespace ugks
             }
     }
 
-    void solver::write_results(std::string file_name) const
+    void solver::write_results(const std::string& file_name) const
     {
         std::stringstream result;
         Eigen::ArrayXXd X(ysize, xsize);
@@ -815,7 +815,7 @@ namespace ugks
     }
 
 
-    void solver::write_mesh(std::string file_name) const
+    void solver::write_mesh(const std::string& file_name) const
     {
         std::stringstream result;
         Eigen::ArrayXXd X(ysize + 1, xsize + 1);
@@ -908,7 +908,7 @@ namespace ugks
     }
     */
    
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type type, int ord)
+    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, boundary_type type, int ord)
     {
         switch (type)
         {
@@ -951,8 +951,8 @@ namespace ugks
         // Heaviside step function. The rotation accounts for the right wall
         delta = (Eigen::sign(vn) * _sign + 1) / 2;
 
-        // boundary condition in local frame
-        prim = tools::frame_local(bc, face.cosa, face.sina);
+        // // boundary condition in local frame
+        // prim = tools::frame_local(bc, face.cosa, face.sina);
 
         //take from normal equation of a line
         double H = std::abs(cell.x*face.cosa + cell.y*face.sina - face.p);
@@ -1194,7 +1194,7 @@ namespace ugks
         Mxi[2] = (DOF * DOF + 2.0 * DOF) / (4.0 * std::pow(prim[3], 2)); //<\xi^4>
     }
 
-    [[nodiscard]] Eigen::Array4d solver::moment_uv(Eigen::Array<double, MNUM, 1> &Mu, Eigen::Array<double, MTUM, 1> &Mv, Eigen::Array<double, 3, 1> &Mxi,
+    [[nodiscard]] Eigen::Array4d solver::moment_uv(const Eigen::Array<double, MNUM, 1> &Mu, const Eigen::Array<double, MTUM, 1> &Mv, const Eigen::Array<double, 3, 1> &Mxi,
                                                    const int alpha, const int beta, const int delta)
     {
 
@@ -1209,7 +1209,7 @@ namespace ugks
     }
 
     [[nodiscard]] Eigen::Array4d solver::moment_au(const Eigen::Array4d &a,
-                                                   Eigen::Array<double, MNUM, 1> &Mu, Eigen::Array<double, MTUM, 1> &Mv, Eigen::Array<double, 3, 1> &Mxi,
+                                                   const Eigen::Array<double, MNUM, 1> &Mu, const Eigen::Array<double, MTUM, 1> &Mv, const Eigen::Array<double, 3, 1> &Mxi,
                                                    const int alpha, const int beta)
     {
 
@@ -1225,7 +1225,7 @@ namespace ugks
         return moment_au;
     }
 
-    void solver::calc_flux(cell &cell_L, cell_interface &face, cell &cell_R, direction dir)
+    void solver::calc_flux(const cell &cell_L, cell_interface &face, const cell &cell_R, direction dir)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);         // normal and tangential micro velosity
@@ -1399,10 +1399,11 @@ physic_val get_physic_from_string(std::string line){
     
     // delete spaces
     std::string no_space_line;
-    for(auto& s: line)
-        if(s != ' ')
-            no_space_line.push_back(s);    
-    
+
+    std::copy_if(line.begin(), line.end(),
+        std::back_inserter(no_space_line),
+        [](auto&& s){ return s != ' ';});
+
     line = no_space_line;
 
     double kn, alpha_ref, omega_ref;
@@ -1427,9 +1428,10 @@ physic_val get_physic_from_string(std::string line){
 
 std::tuple<size_t, size_t> get_sizes_from_string(std::string line){
     std::string no_space_line;
-    for(auto& s: line)
-        if(s != ' ')
-            no_space_line.push_back(s);
+    
+    std::copy_if(line.begin(), line.end(),
+        std::back_inserter(no_space_line),
+        [](auto&& s){ return s != ' ';} );
 
     line = no_space_line;
     size_t rows = std::round(get_num(line, "J="));
@@ -1475,9 +1477,9 @@ vel_space_param get_velocity_space_from_string(std::string line){
     
     // delete spaces
     std::string no_space_line;
-    for(auto& s: line)
-        if(s != ' ')
-            no_space_line.push_back(s);    
+    std::copy_if(line.begin(), line.end(),
+        std::back_inserter(no_space_line),
+        [](auto&& s){ return s != ' ';} );
     
     line = no_space_line;
 

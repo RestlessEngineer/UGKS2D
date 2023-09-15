@@ -76,11 +76,6 @@ namespace ugks
             return local_frame;
         }
 
-        double get_gamma(const int &DOF)
-        {
-            return double(DOF + 4) / double(DOF + 2);
-        }
-
         double get_sos(const Eigen::Array4d &prim, const double &gamma)
         {
             return std::sqrt(0.5 * gamma / prim[3]);
@@ -98,11 +93,6 @@ namespace ugks
                                const Eigen::Array4d &prim, const double &DOF)
         {
             return 2.0 * ((weight * ((vn - prim[1]) * (vn - prim[1]) + (vt - prim[2]) * (vt - prim[2])) * h).sum() + (weight * b).sum()) / (DOF + 2) / prim[0];
-        }
-
-        double get_mu(const double &kn, const double &alpha, const double &omega)
-        {
-            return 5 * (alpha + 1) * (alpha + 2) * sqrt(M_PI) / (4 * alpha * (5 - 2 * omega) * (7 - 2 * omega)) * kn;
         }
 
         std::array<double, 2> get_heat_flux(const Eigen::ArrayXXd &h, const Eigen::ArrayXXd &b,

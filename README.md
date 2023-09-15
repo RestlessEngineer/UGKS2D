@@ -1,8 +1,15 @@
 # UGKS
-UGKS scheme for 2d gas-dynamic
-
+A two-dimensional unified gas-kinetic scheme (UGKS) for calculations on structured quadrilateral computational meshes.
 ### parallelism
-for using parallelism it is necessary remove comment in ```#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")``` in *CMakeLists.txt*
+This code uses OPENMP by default
+
+### how to build
+```
+makedir build
+cd build
+cmake ..
+make 
+```
 
 ### using libraries
 - **Eigen** for matrix calculations

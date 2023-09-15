@@ -1,14 +1,5 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.10)
 
-project(examples)
-
-# set_target_properties(
-#         box PROPERTIES
-#         CXX_STANDARD 14
-#         CXX_STANDARD_REQUIRED ON
-# )
-
-set (CMAKE_CXX_STANDARD 17)
 
 option(DO_PROFILIZE "profile time steps" OFF)
 
@@ -29,7 +20,7 @@ set(SOURCE  ${SRC_DIR}/tools.cpp
             ${SRC_DIR}/solver.cpp)
 
 set(HEADER  ${SRC_DIR}/global.h
-			${SRC_DIR}/tools.h
+	    ${SRC_DIR}/tools.h
             ${SRC_DIR}/solver.h)
 
 

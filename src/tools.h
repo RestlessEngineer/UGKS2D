@@ -55,7 +55,10 @@ namespace ugks
         ///@brief obtain ratio of specific heat
         ///@param DOF internal degree of freedom
         ///@return ratio of specific heat
-        double get_gamma(const int &DOF);
+        constexpr double get_gamma(const int &DOF)
+        {
+            return double(DOF + 4) / double(DOF + 2);
+        }
 
         ///@brief obtain speed of sound
         ///@param prim primary variables
@@ -94,7 +97,10 @@ namespace ugks
         ///@param kn Knudsen number
         ///@param alpha,omega indexes related to HS/VHS/VSS model
         ///@return nondimensionalized viscosity coefficient
-        double get_mu(const double &kn, const double &alpha, const double &omega);
+        constexpr double get_mu(const double &kn, const double &alpha, const double &omega)
+        {
+            return 5 * (alpha + 1) * (alpha + 2) * sqrt(M_PI) / (4 * alpha * (5 - 2 * omega) * (7 - 2 * omega)) * kn;
+        }
 
         ///@brief get the nondimensionalized viscosity coefficient
         ///@param integ type of integration

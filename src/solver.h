@@ -2,6 +2,7 @@
 #define SOLVER_H
 
 #include "global.h"
+#include "tools.h"
 #include <math.h>
 #ifdef DO_PROFILIZE
     #include <iostream>
@@ -60,11 +61,12 @@ namespace ugks
         size_t ysize = 0, xsize = 0; // index range in i and j direction
 
         //* physics constants
-        double gamma;     // number whose value depends on the state of the gas
-        double omega;     // temperature dependence index in HS/VHS/VSS model
-        double Pr;        // Prandtl number
-        double mu_ref;    // viscosity coefficient in reference state
-        unsigned int DOF; // internal degree of freedom
+        unsigned int DOF = 1;                                // internal degree of freedom
+        double gamma = ugks::tools::get_gamma(DOF);          // number whose value depends on the state of the gas
+        double omega = 0.72;                                 // temperature dependence index in HS/VHS/VSS model
+        double Pr = 2.0/3.0;                                 // Prandtl number
+        double mu_ref = ugks::tools::get_mu(0.01, 1, 0.5);   // viscosity coefficient in reference state
+
 
         //* simulation parameters
         precision siorder = precision::SECOND_ORDER; // simulation order
@@ -72,7 +74,7 @@ namespace ugks
         double CFL = 0.8;   // global CFL number
         Eigen::Array4d res; // simulation residual
 
-        double dt;          // global time step
+        double dt = 1e-20;  // global time step
         double sitime = 0.; // current simulation time
         int cnt_iter = 0;   // count of iterations
 
@@ -86,11 +88,18 @@ namespace ugks
         Eigen::Array<cell_interface, -1, -1> vface, hface; // vertical and horizontal interfaces
 
         Eigen::Array4d bc_L, bc_R, bc_U, bc_D; // boundary conditions at LEFT, RIGHT, UP and DOWN boundary
-        boundary_type bc_typeL, bc_typeR, bc_typeU, bc_typeD; //boundary types WALL, INPUT, OUTPUT, MIRROR and others
+        
+        //boundary types WALL, INPUT, OUTPUT, MIRROR and others
+        boundary_type bc_typeL = boundary_type::WALL;
+        boundary_type bc_typeR = boundary_type::WALL;
+        boundary_type bc_typeU = boundary_type::WALL;
+        boundary_type bc_typeD = boundary_type::WALL; 
 
         //* velocity space
         size_t usize = 0, vsize = 0;    // number of velocity points for u and v
-        double umax, vmax;              // maximum micro velocity
+        // maximum micro velocity
+        double umax = std::numeric_limits<double>::max();
+        double vmax = std::numeric_limits<double>::max();              
         Eigen::ArrayXXd uspace, vspace; // u and v discrete velocity space
         Eigen::ArrayXXd weight;         // weight at velocity u_k and v_l
 
@@ -211,11 +220,11 @@ namespace ugks
         }
 
         /// @brief writting current results
-        void write_results(std::string file_name = "cavity.dat") const;
+        void write_results(const std::string& file_name = "cavity.dat") const;
 
         /// @brief saving mesh
         /// @param file_name mesh name 
-        void write_mesh(std::string file_name = "mesh.dat") const;
+        void write_mesh(const std::string& file_name = "mesh.dat") const;
 
         /// @brief filling inner values from file
         /// @param file_name file with results
@@ -255,7 +264,7 @@ namespace ugks
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
         /// @param btype boundary type (WALL, INPUT, OUTPUT, MIRROR)
-        void calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, cell cell, boundary_type btype, int side);
+        void calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, boundary_type btype, int side);
         
         /// @brief calculate flux of boundary interface
         /// @param bc   boundary condition
@@ -303,7 +312,7 @@ namespace ugks
         /// @param alpha,beta exponential index of u and v
         /// @param delta      exponential index of \xi
         /// @return  moment of <u^\alpha*v^\beta*\xi^\delta*\psi>
-        [[nodiscard]] Eigen::Array4d moment_uv(Eigen::Array<double, MNUM, 1> &Mu, Eigen::Array<double, MTUM, 1> &Mv, Eigen::Array<double, 3, 1> &Mxi,
+        [[nodiscard]] Eigen::Array4d moment_uv(const Eigen::Array<double, MNUM, 1> &Mu, const Eigen::Array<double, MTUM, 1> &Mv, const Eigen::Array<double, 3, 1> &Mxi,
                                                const int alpha, const int beta, const int delta);
 
         /// @brief calculate <a*u^\alpha*v^\beta*\psi>
@@ -313,7 +322,7 @@ namespace ugks
         /// @param alpha,beta exponential index of u and v
         /// @return moment of <a*u^\alpha*v^\beta*\psi>
         [[nodiscard]] Eigen::Array4d moment_au(const Eigen::Array4d &a,
-                                               Eigen::Array<double, MNUM, 1> &Mu, Eigen::Array<double, MTUM, 1> &Mv, Eigen::Array<double, 3, 1> &Mxi,
+                                               const Eigen::Array<double, MNUM, 1> &Mu, const Eigen::Array<double, MTUM, 1> &Mv, const Eigen::Array<double, 3, 1> &Mxi,
                                                const int alpha, const int beta);
 
         /// @brief calculate flux of inner interface
@@ -321,7 +330,7 @@ namespace ugks
         /// @param face   the target interface
         /// @param cell_R cell right to the target interface
         /// @param idx    index indicating i or j direction
-        void calc_flux(cell &cell_L, cell_interface &face, cell &cell_R, direction dir);
+        void calc_flux(const cell &cell_L, cell_interface &face, const cell &cell_R, direction dir);
 
         /// @brief filling of mesh
         /// @param xupw x cords of up wall
