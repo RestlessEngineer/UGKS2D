@@ -41,9 +41,27 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-add_executable (${PROJECT_NAME} ${SOURCES} ${HEADERS})
+#
+# ArgParse library
+#
+include(FetchContent)
+FetchContent_Declare(
+    argparse
+    GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+)
+FetchContent_MakeAvailable(argparse)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Eigen3::Eigen)
+#
+# nlohmann_json library
+#
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+    )
+FetchContent_MakeAvailable(json)
+
+add_executable (${PROJECT_NAME} ${SOURCES} ${HEADERS})
+target_link_libraries(${PROJECT_NAME} PUBLIC Eigen3::Eigen nlohmann_json::nlohmann_json argparse)
 
 if(USE_OPENMP)
     target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
@@ -51,7 +69,6 @@ if(USE_OPENMP)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDO_PROFILIZE")
     endif()
 endif()
-
 
 
 
