@@ -53,6 +53,16 @@ namespace ugks
         Eigen::Array4d res; // residual
         double CFL;         // global CFL number
         precision siorder;  // simulation order
+
+        friend std::ostream& operator<<(std::ostream& os, const simulation_val& sim) {
+            os << "simulation values:\n" << 
+                "iter: "<< sim.cnt_iter <<
+                " sitime: "<<sim.sitime << 
+                " dt: "<< sim.dt << std::endl <<
+                "residual: "<< sim.res.transpose();
+            return os;
+        }
+
     };
 
     class solver

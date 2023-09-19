@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.10)
 
 project(UGKS2D)
 
-# set (CMAKE_CXX_STANDARD 14)
-
 set(SOURCES src/main.cpp 
             src/tools.cpp 
             src/solver.cpp)
@@ -31,14 +29,14 @@ endif()
 #
 # OPTIONS
 #
-option(BUILD_EXAMPLES "Whether to build an examples or not." ON)
+option(TRANSFER_BUILD_EXAMPLES "Whether to build an examples or not." ON)
 option(USE_OPENMP "Whether to use openMP or not" ON)
 option(USE_OPENMP_PROFILIZE "Whether to use profilizing or not" OFF)
 
 set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
+if(USE_OPENMP_PROFILIZE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDO_PROFILIZE")
 endif()
 
 #
@@ -70,7 +68,15 @@ if(USE_OPENMP)
     endif()
 endif()
 
-
+if(TRANSFER_BUILD_EXAMPLES)
+    set(EXAMPLES_DIR "${CMAKE_SOURCE_DIR}/examples")
+    # Create a custom command to copy the file after the build
+    add_custom_command(
+        TARGET ${PROJECT_NAME}  # Specify the target for which the custom command should run
+        POST_BUILD               # Specify that this command should run after the build
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${EXAMPLES_DIR} ${EXECUTABLE_OUTPUT_PATH} 
+    )
+endif()
 
 # # look here https://github.com/google/googletest/tree/main/googletest
 # include(FetchContent)

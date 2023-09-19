@@ -1,0 +1,46 @@
+{
+  "Calculation": {
+    "residual": 1.0e-5,
+    "CFL": 0.8,
+    "Precision": 2,
+    "ThreadsCount": 4
+  },
+  "Physic":{
+    "Knudsen": 1.0,
+    "AlphaRef": 1.0,
+    "OmegaRef": 0.81,
+    "DOF": 1,
+    "Prantl": 0.666666666666667,
+    "Omega": 0.81
+  },
+  "Geometry":{
+    "size": [33, 30],
+    "UpWall": [[-451.96988184833185, 479.7471737668789], [-391.96988184833185, 479.7471737668789], [0.0, 400.0], [500.0, 400.0]],
+    "DownWall": [[-451.96988184833185, -479.7471737668789], [-391.96988184833185, -479.7471737668789], [0.0, -400.0], [500.0, -400.0]]
+  },
+  "VelocitySpace":{
+    "size": [30, 30],
+    "XSpaceRange": [-3.5, 6.5],
+    "YSpaceRange": [-5.0, 5.0],
+    "IntegrationMethod": "NEWTON_COTES"
+  },
+  "Boundaries":{
+    "UP": {
+      "Type": "MIRROR",
+      "Init": [1.0, 0.0, 0.0, 1.0]
+    },
+    "LEFT": {
+      "Type": "INPUT",
+      "Init": [1.0, 1.8257418583505538, 0.0, 1.0]
+    },
+    "RIGHT": {
+      "Type": "OUTPUT",
+      "Init": [1.0, 0.0, 0.0, 1.0]
+    }, 
+    "DOWN": {
+      "Type": "MIRROR",
+      "Init": [1.0, 0.0, 0.0, 1.0]
+    }  
+  },
+  "FlowField": [1.0, 0.0, 0.0, 1.0]
+}

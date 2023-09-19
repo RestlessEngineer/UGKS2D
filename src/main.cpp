@@ -2,12 +2,13 @@
 #include "global.h"
 #include "tools.h"
 #include "solver.h"
-#include <Eigen/Dense>
 #include <iostream>
 #include <fstream>
-#include <argparse/argparse.hpp>
 #include <exception>
 #include <vector>
+
+#include <Eigen/Dense>
+#include <argparse/argparse.hpp>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -29,34 +30,34 @@ void init_arguments_parser(argparse::ArgumentParser &arguments)
         .help("Init file in .json format. It sets parameters for all programm");
 
     arguments.add_argument("-o", "--output")
-        .required()
+        .default_value("cavity.dat")
         .help("Output file for results. All results will be write there in a .plt format");
 
     arguments.add_argument("-r", "--output-rate")
         .default_value(-1)
-        .help("Rate defines how often output file will be written");
+        .help("Rate defines how often output file will be written")
+        .scan<'d', int>();
 
+    arguments.add_argument("-s", "--sim-info-rate")
+        .default_value(-1)
+        .help("Rate defines how often calculation information will be in concole")
+        .scan<'d', int>();
     
+    arguments.add_argument("-t", "--threads-count")
+        .default_value(0)
+        .help("How many threads will be launched")
+        .scan<'d', int>();
+    
+
 }
 
-int main(int argc, char *argv[]){
 
-    init_arguments_parser(arguments);
-
-    try
-    {
-        arguments.parse_args(argc, argv);
-
-        json init_params = arguments.get<json>("--init")[0];
-        auto output_file = arguments.get<std::string>("--output");
-        auto rate = arguments.get<int>("--output-rate");
-
-        // auto params = json::parse(init_params);
-
+ugks::solver create_solver(const json& init_params)
+{ 
         // calculation params
         double CFL = init_params["Calculation"]["CFL"]; // Courant–Friedrichs–Lewy number
         double residual = init_params["Calculation"]["residual"];
-        ugks::precision prec = init_params["Calculation"]["precision"] == 1 ? ugks::precision::FIRST_ORDER : ugks::precision::SECOND_ORDER;
+        ugks::precision prec = init_params["Calculation"]["Precision"] == 1 ? ugks::precision::FIRST_ORDER : ugks::precision::SECOND_ORDER;
 
         // physic parameters
         double kn = init_params["Physic"]["Knudsen"];         // Knudsen number in reference state
@@ -75,7 +76,7 @@ int main(int argc, char *argv[]){
         auto RawUpVal = init_params["Geometry"]["UpWall"];
         auto RawDownVal = init_params["Geometry"]["DownWall"];
         std::vector<ugks::point> upWall, downWall;
-        auto insert_point = [](auto && x) -> ugks::point
+        auto insert_point = [](auto x) -> ugks::point
         { return {x[0], x[1]};};
 
         std::transform(RawUpVal.cbegin(), RawUpVal.cend(),
@@ -125,7 +126,7 @@ int main(int argc, char *argv[]){
         // boundary
         auto boundary_init = [&init_params](const std::string& side) -> std::tuple<ugks::boundary_type, Eigen::Array4d>
         {
-            std::string stype = init_params[side]["Type"];
+            std::string stype = init_params["Boundaries"][side]["Type"];
             ugks::boundary_type type;
             if(stype == "WALL")
                 type = ugks::boundary_type::WALL;
@@ -139,7 +140,7 @@ int main(int argc, char *argv[]){
                 throw std::invalid_argument("wrong boundary type: " + stype);
             
 
-            auto in_bound = init_params[side]["Init"]; 
+            auto in_bound = init_params["Boundaries"][side]["Init"]; 
             Eigen::Array4d bound;
             std::copy(in_bound.begin(), in_bound.end(), bound.begin());
             return {type, bound};
@@ -160,39 +161,69 @@ int main(int argc, char *argv[]){
         Eigen::Array4d field;
         std::copy(in_field.begin(), in_field.end(), field.begin());
         ugks_solver.set_flow_field(field);
+        
+        return ugks_solver;
+}
 
-        while( true ){
 
+int main(int argc, char *argv[]){
+
+    init_arguments_parser(arguments);
+
+    try
+    {
+        arguments.parse_args(argc, argv);
+        
+        //create solver
+        json init_params = arguments.get<json>("--init")[0];
+        auto ugks_solver = create_solver(init_params);
+
+        auto output_file = arguments.get<std::string>("--output");
+        auto output_rate = arguments.get<int>("--output-rate");
+        auto sim_info_rate = arguments.get<int>("--sim-info-rate");
+
+        int threads_count = init_params["Calculation"]["ThreadsCount"];
+        double residual = init_params["Calculation"]["residual"];
+        if(arguments.get<int>("--threads-count") > 0)
+            threads_count = arguments.get<int>("--threads-count");
+        
+        std::cout<<"count threads: "<<threads_count<<std::endl;
+        omp_set_num_threads(threads_count);
+
+        while (true)
+        {
             auto sim = ugks_solver.solve();
-            
+
             auto max_res = std::max_element(sim.res.begin(), sim.res.end());
 
-            //check is nan
+            // check is nan
             bool is_nan = std::accumulate(sim.res.begin(), sim.res.end(), false,
-                                        [](auto &&val1, auto &&val2)
-                                        {return std::isnan(val1) || std::isnan(val2); });
-            if(is_nan){
-                std::cout << "nan was detected; res: "<< sim.res.transpose() << std::endl;
+                                          [](auto &&val1, auto &&val2)
+                                          { return std::isnan(val1) || std::isnan(val2); });
+            if (is_nan)
+            {
+                std::cout << "nan was detected; res: " << sim.res.transpose() << std::endl;
                 return -1;
             }
-
-            //check if exit
+            // check if exit
             if (*max_res < residual)
                 break;
 
-            if( sim.cnt_iter%10 == 0){
-                std::cout << "iter: "<< sim.cnt_iter <<
-                " sitime: "<<sim.sitime << 
-                " dt: "<< sim.dt << std::endl;
-                std::cout << "res: "<< sim.res.transpose() << std::endl;
+            if (sim_info_rate > 0 && sim.cnt_iter % sim_info_rate == 0)
+            {
+                std::cout << sim << std::endl;
+            }
+            if (output_rate > 0 && sim.cnt_iter % output_rate == 0)
+            {   
+                std::string temp_name = output_file;
+                temp_name.insert(temp_name.rfind('.'), "_temp");
+                std::cout <<"write result into "<<temp_name<<std::endl;
+                ugks_solver.write_results(temp_name);
             }
         }
 
-        ugks_solver.write_results();
+        ugks_solver.write_results(output_file);
 
-        // std::cout << "init: " << init_params.dump(4) << std::endl;
-        // std::cout << "output: " << output_file << std::endl;
-        // std::cout << "rate: " << rate << std::endl;
     }
     catch (const std::runtime_error &err)
     {
@@ -203,12 +234,8 @@ int main(int argc, char *argv[]){
     catch (const std::exception &e)
     {
         std::cerr << "Error reading or parsing JSON: " << e.what() << std::endl;
-        return 1;
+        std::exit(1);
     }
-
-
-
-
 
     return 0;
 
