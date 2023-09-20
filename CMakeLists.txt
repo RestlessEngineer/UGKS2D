@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.10)
 
 project(UGKS2D)
 
-# set (CMAKE_CXX_STANDARD 14)
-
 set(SOURCES src/main.cpp 
             src/tools.cpp 
             src/solver.cpp)
@@ -31,19 +29,37 @@ endif()
 #
 # OPTIONS
 #
-option(BUILD_EXAMPLES "Whether to build an examples or not." ON)
+option(TRANSFER_BUILD_EXAMPLES "Whether to build an examples or not." ON)
 option(USE_OPENMP "Whether to use openMP or not" ON)
 option(USE_OPENMP_PROFILIZE "Whether to use profilizing or not" OFF)
 
 set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
 
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
+if(USE_OPENMP_PROFILIZE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDO_PROFILIZE")
 endif()
 
-add_executable (${PROJECT_NAME} ${SOURCES} ${HEADERS})
+#
+# ArgParse library
+#
+include(FetchContent)
+FetchContent_Declare(
+    argparse
+    GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+)
+FetchContent_MakeAvailable(argparse)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Eigen3::Eigen)
+#
+# nlohmann_json library
+#
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+    )
+FetchContent_MakeAvailable(json)
+
+add_executable (${PROJECT_NAME} ${SOURCES} ${HEADERS})
+target_link_libraries(${PROJECT_NAME} PUBLIC Eigen3::Eigen nlohmann_json::nlohmann_json argparse)
 
 if(USE_OPENMP)
     target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
@@ -52,8 +68,14 @@ if(USE_OPENMP)
     endif()
 endif()
 
-
-
+if(TRANSFER_BUILD_EXAMPLES)
+    set(EXAMPLES_DIR "${CMAKE_SOURCE_DIR}/examples")
+    add_custom_command(
+        TARGET ${PROJECT_NAME}
+        POST_BUILD      
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${EXAMPLES_DIR} ${EXECUTABLE_OUTPUT_PATH} 
+    )
+endif()
 
 # # look here https://github.com/google/googletest/tree/main/googletest
 # include(FetchContent)

@@ -1498,14 +1498,12 @@ vel_space_param get_velocity_space_from_string(std::string line){
 void solver::init_inner_values_by_result(std::string file_name){
     std::string line;
     std::ifstream fstream(file_name);
-    //string with physic values
-    getline(fstream, line);
-    physic_val phys =  get_physic_from_string(line);
-    //string with velocity space param
-    getline(fstream, line);
-    vel_space_param param = get_velocity_space_from_string(line);
+    if (!fstream.is_open()) {
+        std::cerr << "Exception opening file: " <<file_name <<std::endl;
+        std::exit(1);
+    }
 
-    //string with variables
+    //pass string with variables
     getline(fstream, line);
     //string with sizes
     getline(fstream, line);
@@ -1513,15 +1511,6 @@ void solver::init_inner_values_by_result(std::string file_name){
     //reallocate memory
     allocate_memory(rows, cols);
     associate_neighbors();
-    
-    //TODO: fix this shit
-    gamma = phys.gamma;
-    DOF = phys.DOF;
-    mu_ref = phys.mu_ref;
-    omega = phys.omega;
-    Pr = phys.Pr;
-
-    set_velocity_space(param);
     
     //pass X,Y coords
     get_array_from_stream(fstream, rows, cols); 
@@ -1555,7 +1544,6 @@ void solver::init_inner_values_by_result(std::string file_name){
             core(i, j).sb[direction::JDIR] = 0.0;
 
         }
-
 
     fstream.close();
 }
