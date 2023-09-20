@@ -56,23 +56,23 @@ namespace ugks
     
     void solver::set_boundary(boundary_side side, const Eigen::Array4d bound, boundary_type type)
     {
+        boundary_cell sample;
+        sample.bound = bound;
+        sample.btype = type;
+
         switch (side)
         {
         case boundary_side::LEFT:
-            bc_L = bound;
-            bc_typeL = type;
+            std::for_each(lbound.begin(), lbound.end(), [&sample](auto && val){val = sample;});
             break;
         case boundary_side::RIGHT:
-            bc_R = bound;
-            bc_typeR = type;
+            std::for_each(rbound.begin(), rbound.end(), [&sample](auto && val){val = sample;});
             break;
         case boundary_side::UP:
-            bc_U = bound;
-            bc_typeU = type;
+            std::for_each(ubound.begin(), ubound.end(), [&sample](auto && val){val = sample;});
             break;
         case boundary_side::DOWN:
-            bc_D = bound;
-            bc_typeD = type;
+            std::for_each(dbound.begin(), dbound.end(), [&sample](auto && val){val = sample;});
             break;
         default:
             break;
@@ -127,6 +127,8 @@ namespace ugks
         vface.resize(ysize, xsize + 1); // vertical cell interface
         hface.resize(ysize + 1, xsize);
         mesh.resize(ysize + 1, xsize + 1);
+        lbound.resize(rows); rbound.resize(cols);
+        ubound.resize(cols); dbound.resize(cols);
         
     }
     void solver::associate_neighbors(){
@@ -346,8 +348,8 @@ namespace ugks
         #pragma omp parallel for
         for (int j = 0; j < xsize; ++j)
         {
-            calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD, order::DIRECT);
-            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU, order::REVERSE);
+            calc_flux_boundary(dbound[j], hface(0, j), core(0, j), order::DIRECT);
+            calc_flux_boundary(ubound[j], hface(ysize, j), core(ysize - 1, j), order::REVERSE);
         }
 
         #pragma omp parallel for collapse(2)
@@ -358,8 +360,8 @@ namespace ugks
         #pragma omp parallel for
         for (int i = 0; i < ysize; ++i)
         {
-            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL, order::DIRECT);
-            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR, order::REVERSE);
+            calc_flux_boundary(lbound[i], vface(i, 0), core(i, 0), order::DIRECT);
+            calc_flux_boundary(rbound[i], vface(i, xsize), core(i, xsize - 1), order::REVERSE);
         }
 
         #pragma omp parallel for collapse(2)    
@@ -908,9 +910,9 @@ namespace ugks
     }
     */
    
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, boundary_type type, int ord)
+    void solver::calc_flux_boundary(const boundary_cell& bc, cell_interface &face, const cell& cell, int ord)
     {
-        switch (type)
+        switch (bc.btype)
         {
         case boundary_type::WALL:
             calc_flux_boundary_wall(bc, face, cell, ord);
@@ -929,7 +931,7 @@ namespace ugks
         }
     }
 
-    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_wall(const boundary_cell &bcell, cell_interface &face, const cell &cell, int ord)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
@@ -938,6 +940,7 @@ namespace ugks
         Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
 
         Eigen::Array4d prim; // boundary condition in local frame
+        const Eigen::Array4d &bc = bcell.bound;
 
         // convert the micro velocity to local frame
         vn = uspace * face.cosa + vspace * face.sina;
@@ -993,7 +996,7 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
-    void solver::calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_mirror(const boundary_cell &bc, cell_interface &face, const cell &cell, int ord)
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);             // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);               // distribution function at the interface
@@ -1060,7 +1063,7 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
-    void solver::calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_input(const boundary_cell &bcell, cell_interface &face, const cell &cell, int ord)
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
@@ -1068,6 +1071,8 @@ namespace ugks
         Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
 
         Eigen::Array4d prim; // boundary condition in local frame
+        
+        const Eigen::Array4d &bc = bcell.bound;
 
         // convert the micro velocity to local frame
         vn = uspace * face.cosa + vspace * face.sina;
@@ -1114,7 +1119,7 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
-    void solver::calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_output(const boundary_cell &bc, cell_interface &face, const cell &cell, int ord)
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface

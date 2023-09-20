@@ -3,16 +3,18 @@
 
 #include <Eigen/Dense>
 #include <vector>
-
+#include <functional>
 namespace ugks
 {
     /// @brief order of calculations
     enum class boundary_type: unsigned char
     {
+        EMPTY,
         WALL,
         INPUT,
         OUTPUT,
-        MIRROR
+        MIRROR,
+        FUNCTIONAL
     };
 
     /// @brief order of calculations
@@ -98,6 +100,12 @@ namespace ugks
         // flow flux
         Eigen::Array4d flux = {};       // mass flux, x and y momentum flux, energy flux
         Eigen::ArrayXXd flux_h, flux_b; // flux of distribution function
+    };
+
+    struct boundary_cell{
+        Eigen::Array4d bound;
+        std::function<Eigen::Array4d(Eigen::Array4d, double, double)> func; //only for functional boundary
+        boundary_type btype = boundary_type::EMPTY;
     };
 
 }

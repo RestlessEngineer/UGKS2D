@@ -97,13 +97,9 @@ namespace ugks
         Eigen::Array<cell, -1, -1> core;                   // cell centers
         Eigen::Array<cell_interface, -1, -1> vface, hface; // vertical and horizontal interfaces
 
-        Eigen::Array4d bc_L, bc_R, bc_U, bc_D; // boundary conditions at LEFT, RIGHT, UP and DOWN boundary
-        
-        //boundary types WALL, INPUT, OUTPUT, MIRROR and others
-        boundary_type bc_typeL = boundary_type::WALL;
-        boundary_type bc_typeR = boundary_type::WALL;
-        boundary_type bc_typeU = boundary_type::WALL;
-        boundary_type bc_typeD = boundary_type::WALL; 
+        using Boundary = Eigen::Array<boundary_cell, -1, 1>; 
+
+        Boundary lbound, rbound, ubound, dbound; // boundary at LEFT, RIGHT, UP and DOWN boundary
 
         //* velocity space
         size_t usize = 0, vsize = 0;    // number of velocity points for u and v
@@ -274,31 +270,31 @@ namespace ugks
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
         /// @param btype boundary type (WALL, INPUT, OUTPUT, MIRROR)
-        void calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, boundary_type btype, int side);
+        void calc_flux_boundary(const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary interface
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_wall(const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary for input conditions
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_input(const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary for output
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_output(const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary for axisymmetric one
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_mirror(const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
 
 
         /// @brief calculate micro slope of Maxwellian distribution
