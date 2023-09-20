@@ -70,10 +70,9 @@ endif()
 
 if(TRANSFER_BUILD_EXAMPLES)
     set(EXAMPLES_DIR "${CMAKE_SOURCE_DIR}/examples")
-    # Create a custom command to copy the file after the build
     add_custom_command(
-        TARGET ${PROJECT_NAME}  # Specify the target for which the custom command should run
-        POST_BUILD               # Specify that this command should run after the build
+        TARGET ${PROJECT_NAME}
+        POST_BUILD      
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${EXAMPLES_DIR} ${EXECUTABLE_OUTPUT_PATH} 
     )
 endif()

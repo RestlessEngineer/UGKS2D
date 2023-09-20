@@ -157,6 +157,16 @@ ugks::solver create_solver(const json& init_params)
         ugks_solver.set_boundary(ugks::boundary_side::DOWN,  dbound, dtype);
 
         // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
+        try
+        {
+            std::string file_name = init_params.at("RestartData");
+            ugks_solver.init_inner_values_by_result(file_name);
+            return ugks_solver;
+        }
+        catch (json::out_of_range &e)
+        {
+        }
+
         auto in_field = init_params["FlowField"]; 
         Eigen::Array4d field;
         std::copy(in_field.begin(), in_field.end(), field.begin());
