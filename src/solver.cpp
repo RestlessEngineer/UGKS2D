@@ -56,30 +56,51 @@ namespace ugks
     
     void solver::set_boundary(boundary_side side, const Eigen::Array4d bound, boundary_type type)
     {
+        boundary_cell sample;
+        sample.bound = bound;
+        sample.btype = type;
+
         switch (side)
         {
         case boundary_side::LEFT:
-            bc_L = bound;
-            bc_typeL = type;
+            std::for_each(lbound.begin(), lbound.end(), [&sample](auto && val){val = sample;});
             break;
         case boundary_side::RIGHT:
-            bc_R = bound;
-            bc_typeR = type;
+            std::for_each(rbound.begin(), rbound.end(), [&sample](auto && val){val = sample;});
             break;
         case boundary_side::UP:
-            bc_U = bound;
-            bc_typeU = type;
+            std::for_each(ubound.begin(), ubound.end(), [&sample](auto && val){val = sample;});
             break;
         case boundary_side::DOWN:
-            bc_D = bound;
-            bc_typeD = type;
+            std::for_each(dbound.begin(), dbound.end(), [&sample](auto && val){val = sample;});
             break;
         default:
             break;
         }
     }
 
-    void solver::timestep()
+    void solver::set_boundary(boundary_side side, const Boundary& bound){
+        switch (side)
+        {
+        case boundary_side::LEFT:
+            std::copy(bound.begin(), bound.end(), lbound.begin());
+            break;
+        case boundary_side::RIGHT:
+            std::copy(bound.begin(), bound.end(), rbound.begin());
+            break;
+        case boundary_side::UP:
+            std::copy(bound.begin(), bound.end(), ubound.begin());
+            break;
+        case boundary_side::DOWN:
+            std::copy(bound.begin(), bound.end(), dbound.begin());
+            break;
+        default:
+            break;
+        }
+    }
+
+
+    double solver::timestep()
     {
 
         double tmax = 0.0;
@@ -114,10 +135,8 @@ namespace ugks
             }
         
         // time step
-        dt = CFL / tmax;
-
-
-
+        double dt = CFL / tmax;
+        return dt;
     }
 
     void solver::allocate_memory(const size_t &rows, const size_t &cols){
@@ -127,8 +146,110 @@ namespace ugks
         vface.resize(ysize, xsize + 1); // vertical cell interface
         hface.resize(ysize + 1, xsize);
         mesh.resize(ysize + 1, xsize + 1);
+        lbound.resize(rows); rbound.resize(rows);
+        ubound.resize(cols); dbound.resize(cols);
         
+        lcell.resize(rows); rcell.resize(rows);
+        ucell.resize(cols); dcell.resize(cols);
     }
+
+
+    std::vector<cell* > solver::get_frontier(boundary_side side, std::pair<size_t, size_t> range){
+        std::vector<cell*> neighbors;
+        neighbors.reserve(range.second - range.first);
+        switch(side){
+        case boundary_side::DOWN:
+            assert(range.second - range.first <= xsize && range.second <= xsize);
+            for (int j = range.first; j < range.second; ++j)
+                neighbors.push_back(&core(0, j));
+            break;
+        case boundary_side::UP:
+            assert(range.second - range.first <= xsize && range.second <= xsize);
+            for (int j = range.first; j < range.second; ++j)
+                neighbors.push_back(&core(ysize - 1, j));
+            break;
+        case boundary_side::LEFT:
+            assert(range.second - range.first <= ysize && range.second <= ysize);
+            for (int i = range.first; i < range.second; ++i)
+                neighbors.push_back(&core(i, 0));
+            break;
+        case boundary_side::RIGHT:
+            assert(range.second - range.first <= ysize && range.second <= ysize);
+            for (int i = range.first; i < range.second; ++i)
+                neighbors.push_back(&core(i, xsize - 1));
+            break;
+        }
+        return neighbors;
+    }
+
+    std::vector<point> solver::get_boundary_points(boundary_side side, std::pair<size_t, size_t> range){
+        std::vector<point> frontier_points;
+        frontier_points.reserve(range.second - range.first + 1);
+        switch(side){
+        case boundary_side::DOWN:
+            assert(range.second - range.first <= xsize && range.second <= xsize);
+            for (int j = range.first; j <= range.second; ++j)
+                frontier_points.push_back(mesh(0, j));
+            break;
+        case boundary_side::UP:
+            assert(range.second - range.first <= xsize && range.second <= xsize);
+            for (int j = range.first; j <= range.second; ++j)
+                frontier_points.push_back(mesh(ysize, j));
+            break;
+        case boundary_side::LEFT:
+            assert(range.second - range.first <= ysize && range.second <= ysize);
+            for (int i = range.first; i <= range.second; ++i)
+                frontier_points.push_back(mesh(i, 0));
+            break;
+        case boundary_side::RIGHT:
+            assert(range.second - range.first <= ysize && range.second <= ysize);
+            for (int i = range.first; i < range.second; ++i)
+                frontier_points.push_back(mesh(i, xsize));
+            break;
+        }
+        return frontier_points;
+    }
+
+
+
+    void solver::associate_neighbors(const std::vector<cell* >& neighbors, boundary_side side, std::pair<size_t, size_t> range){
+        switch(side){
+            case boundary_side::DOWN:
+                assert(range.second - range.first <= xsize && range.second <= xsize);
+                for(int j = range.first, i = 0; j < range.second; ++j, ++i){
+                    core(0, j).neighbors.push_back(neighbors[i]);
+                    dbound[j].btype = boundary_type::GLUE;
+                    dcell[j] = neighbors[i];
+                }
+                break;
+            case boundary_side::UP:
+                assert(range.second - range.first <= xsize && range.second <= xsize);
+                for(int j = range.first, i = 0; j < range.second; ++j, ++i){
+                    core(ysize - 1, j).neighbors.push_back(neighbors[i]);
+                    ubound[j].btype = boundary_type::GLUE;
+                    ucell[j] = neighbors[i];    
+                }
+                break;
+            case boundary_side::LEFT:
+                assert(range.second - range.first <= ysize && range.second <= ysize);
+                for(int i = range.first, j = 0; i < range.second; ++i, ++j){
+                    core(i, 0).neighbors.push_back(neighbors[j]);
+                    lbound[i].btype = boundary_type::GLUE;
+                    lcell[i] = neighbors[j];                    
+                }
+                break;
+            case boundary_side::RIGHT:
+                assert(range.second - range.first <= ysize && range.second <= ysize);
+                for(int i = range.first, j = 0; i < range.second; ++i, ++j){
+                    core(i, xsize - 1).neighbors.push_back(neighbors[j]);
+                    rbound[i].btype = boundary_type::GLUE;
+                    rcell[i] =  neighbors[j];                        
+                }
+                break;
+        }
+    }
+
+
     void solver::associate_neighbors(){
         // associate neighbors
         // boundaries
@@ -340,45 +461,62 @@ namespace ugks
     }
     
 
-    void solver::flux_calculation()
+    void solver::flux_calculation(double dt)
     {      
         
         #pragma omp parallel for
         for (int j = 0; j < xsize; ++j)
         {
-            calc_flux_boundary(bc_D, hface(0, j), core(0, j), bc_typeD, order::DIRECT);
-            calc_flux_boundary(bc_U, hface(ysize, j), core(ysize - 1, j), bc_typeU, order::REVERSE);
+            if(dbound[j].btype == boundary_type::GLUE){
+                calc_flux(dt, *dcell[j], hface(0, j), core(0, j), direction::IDIR);
+            }else{
+                calc_flux_boundary(dt, dbound[j], hface(0, j), core(0, j), order::DIRECT);
+            }
+
+            if(ubound[j].btype == boundary_type::GLUE){
+                calc_flux(dt, core(ysize - 1, j), hface(ysize, j), *ucell[j], direction::IDIR);
+            }else{
+                calc_flux_boundary(dt, ubound[j], hface(ysize, j), core(ysize - 1, j), order::REVERSE);
+            }
         }
 
         #pragma omp parallel for collapse(2)
         for (int j = 0; j < xsize; ++j)
             for (int i = 1; i < ysize; ++i)
-                calc_flux(core(i - 1, j), hface(i, j), core(i, j), direction::IDIR);
+                calc_flux(dt, core(i - 1, j), hface(i, j), core(i, j), direction::IDIR);
         
         #pragma omp parallel for
         for (int i = 0; i < ysize; ++i)
         {
-            calc_flux_boundary(bc_L, vface(i, 0), core(i, 0), bc_typeL, order::DIRECT);
-            calc_flux_boundary(bc_R, vface(i, xsize), core(i, xsize - 1), bc_typeR, order::REVERSE);
+            if(lbound[i].btype == boundary_type::GLUE){
+                calc_flux(dt, *lcell[i], vface(i, 0), core(i, 0), direction::JDIR);
+            }else{
+                calc_flux_boundary(dt, lbound[i], vface(i, 0), core(i, 0), order::DIRECT);
+            }
+
+            if(rbound[i].btype == boundary_type::GLUE){
+                calc_flux(dt, core(i, xsize - 1), vface(i, xsize), *rcell[i], direction::JDIR);
+            }else{
+                calc_flux_boundary(dt, rbound[i], vface(i, xsize), core(i, xsize - 1), order::REVERSE);                
+            }
+
         }
 
         #pragma omp parallel for collapse(2)    
         for (int j = 1; j < xsize; ++j){
            for (int i = 0; i < ysize; ++i)
-                calc_flux(core(i, j - 1), vface(i, j), core(i, j), direction::JDIR);
+                calc_flux(dt, core(i, j - 1), vface(i, j), core(i, j), direction::JDIR);
         }
     }
     
-    void solver::update()
+    std::tuple<Eigen::Array4d, Eigen::Array4d> solver::update(double dt)
     {
         Eigen::ArrayXXd H_old(vsize, usize), B_old(vsize, usize);   // equilibrium distribution at t=t^n
         Eigen::ArrayXXd H(vsize, usize), B(vsize, usize);           // equilibrium distribution at t=t^{n+1}
         Eigen::ArrayXXd H_plus(vsize, usize), B_plus(vsize, usize); // Shakhov part
         Eigen::Array4d sum_res = Eigen::Array4d::Zero(), sum_avg = Eigen::Array4d::Zero();
 
-        // set initial value
-        res = Eigen::Array4d::Zero();
-
+       
         #pragma omp declare reduction\
             (+:Eigen::Array4d:omp_out=omp_out+omp_in)\
             initializer(omp_priv=Eigen::Array4d::Zero())
@@ -432,8 +570,7 @@ namespace ugks
                                (1.0 + 0.5 * dt / tau);
             }
 
-        // final residual
-        res = sqrt(xsize * ysize * sum_res) / (sum_avg + DBL_EPSILON);
+        return {xsize * ysize * sum_res, sum_avg};
     }
 
     void solver::set_geometry(const double &xlength, const double &ylength)
@@ -482,6 +619,9 @@ namespace ugks
 
     void solver::fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw)
     {
+        assert(xupw.size() == xsize + 1 && yupw.size() == xsize + 1 && \
+            xdownw.size() == xsize + 1 && ydownw.size() == xsize + 1);
+
         for (size_t j = 0; j < xsize + 1; ++j)
         {
             double dx = (xupw[j] - xdownw[j]) / ysize;
@@ -537,7 +677,11 @@ namespace ugks
                 else if (std::abs(b) < DBL_EPSILON && std::abs(a) > DBL_EPSILON)
                 {
                     // TODO: hard mesh deformation, fix this case
-                    assert(false);
+                    vface(i, j).cosa = 0.0;
+                    vface(i, j).sina =  a > 0 ? 1.0 : -1.0;
+                    vface(i, j).p = mesh(i, j).y;  
+                    
+                    //assert(false);
                 }
                 else
                 {   
@@ -762,6 +906,12 @@ namespace ugks
             }
     }
 
+    // auto print_boundary = [](ugks::Boundary bound, string side){
+    //     std::cout<<"side: "<<side<<std::endl;
+    //     for(auto& cell: bound)
+    //         std::cout<<"type: "<< 
+    // };
+
     void solver::write_results(const std::string& file_name) const
     {
         std::stringstream result;
@@ -908,28 +1058,28 @@ namespace ugks
     }
     */
    
-    void solver::calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, boundary_type type, int ord)
+    void solver::calc_flux_boundary(double dt, const boundary_cell& bc, cell_interface &face, const cell& cell, int ord)
     {
-        switch (type)
+        switch (bc.btype)
         {
         case boundary_type::WALL:
-            calc_flux_boundary_wall(bc, face, cell, ord);
+            calc_flux_boundary_wall(dt, bc, face, cell, ord);
             break;
         case boundary_type::INPUT:
-            calc_flux_boundary_input(bc, face, cell, ord);
+            calc_flux_boundary_input(dt, bc, face, cell, ord);
             break;
         case boundary_type::OUTPUT:
-            calc_flux_boundary_output(bc, face, cell, ord);
+            calc_flux_boundary_output(dt, bc, face, cell, ord);
             break;
         case boundary_type::MIRROR:
-            calc_flux_boundary_mirror(bc, face, cell, ord);
+            calc_flux_boundary_mirror(dt, bc, face, cell, ord);
             break;
         default:
             break;
         }
     }
 
-    void solver::calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_wall(double dt, const boundary_cell &bcell, cell_interface &face, const cell &cell, int ord)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
@@ -938,6 +1088,7 @@ namespace ugks
         Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
 
         Eigen::Array4d prim; // boundary condition in local frame
+        const Eigen::Array4d &bc = bcell.bound;
 
         // convert the micro velocity to local frame
         vn = uspace * face.cosa + vspace * face.sina;
@@ -993,7 +1144,7 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
-    void solver::calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_mirror(double dt, const boundary_cell &bc, cell_interface &face, const cell &cell, int ord)
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);             // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);               // distribution function at the interface
@@ -1060,7 +1211,7 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
-    void solver::calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_input(double dt, const boundary_cell &bcell, cell_interface &face, const cell &cell, int ord)
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
@@ -1068,6 +1219,8 @@ namespace ugks
         Eigen::ArrayXXd delta(vsize, usize);                // Heaviside step function
 
         Eigen::Array4d prim; // boundary condition in local frame
+        
+        const Eigen::Array4d &bc = bcell.bound;
 
         // convert the micro velocity to local frame
         vn = uspace * face.cosa + vspace * face.sina;
@@ -1114,7 +1267,7 @@ namespace ugks
         face.flux_b = dt * face.length * face.flux_b;
     }
 
-    void solver::calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell &cell, int ord)
+    void solver::calc_flux_boundary_output(double dt, const boundary_cell &bc, cell_interface &face, const cell &cell, int ord)
     {
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize); // normal and tangential micro velosity
         Eigen::ArrayXXd h(vsize, usize), b(vsize, usize);   // distribution function at the interface
@@ -1225,7 +1378,7 @@ namespace ugks
         return moment_au;
     }
 
-    void solver::calc_flux(const cell &cell_L, cell_interface &face, const cell &cell_R, direction dir)
+    void solver::calc_flux(double dt, const cell &cell_L, cell_interface &face, const cell &cell_R, direction dir)
     {
 
         Eigen::ArrayXXd vn(vsize, usize), vt(vsize, usize);         // normal and tangential micro velosity
@@ -1548,4 +1701,50 @@ void solver::init_inner_values_by_result(std::string file_name){
     fstream.close();
 }
 
-}
+    simulation_val solver::solve()
+    {
+
+    #ifdef DO_PROFILIZE
+        double itime, ftime;
+        itime = omp_get_wtime();
+    #endif
+
+        double dt = timestep(); // calculate time step
+
+    #ifdef DO_PROFILIZE
+        ftime = omp_get_wtime();
+        std::cout << "perform time: timestep " << ftime - itime << " ";
+        itime = omp_get_wtime();
+    #endif
+
+        interpolation(); // calculate the slope of distribution function
+
+    #ifdef DO_PROFILIZE
+        ftime = omp_get_wtime();
+        std::cout << "interpolation " << ftime - itime << " ";
+        itime = omp_get_wtime();
+    #endif
+
+        flux_calculation(dt); // calculate flux across the interfaces
+    #ifdef DO_PROFILIZE
+        ftime = omp_get_wtime();
+        std::cout << "flux calculation " << ftime - itime << " ";
+        itime = omp_get_wtime();
+    #endif
+
+        auto [sum_res, sum_avg] = update(dt); // update cell averaged value
+
+        // final residual
+        auto res = sqrt(sum_res) / (sum_avg + DBL_EPSILON);
+
+    #ifdef DO_PROFILIZE
+        ftime = omp_get_wtime();
+        std::cout << "update " << ftime - itime << "\n";
+    #endif
+
+        cnt_iter++;
+        sitime += dt;
+
+        return {dt, sitime, cnt_iter, res, CFL, siorder};
+    }
+    }

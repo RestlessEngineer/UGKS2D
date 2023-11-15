@@ -3,16 +3,20 @@
 
 #include <Eigen/Dense>
 #include <vector>
-
+#include <functional>
 namespace ugks
 {
     /// @brief order of calculations
     enum class boundary_type: unsigned char
     {
+        EMPTY,
+        GLUE,
         WALL,
         INPUT,
         OUTPUT,
-        MIRROR
+        MIRROR,
+        ROTATION,
+        FUNCTIONAL
     };
 
     /// @brief order of calculations
@@ -34,8 +38,35 @@ namespace ugks
         LEFT,
         RIGHT,
         UP,
-        DOWN
+        DOWN,
+        ERROR_SIZE
     };
+
+    //TODO: erase this function
+    inline boundary_side convert_to_side(std::string side){
+        if(side == "LEFT")
+            return boundary_side::LEFT;
+        if(side == "RIGHT")
+            return boundary_side::RIGHT;
+        if(side == "UP")
+            return boundary_side::UP;
+        if(side == "DOWN")
+            return boundary_side::DOWN;
+
+        return boundary_side::ERROR_SIZE;
+    }
+    // inline string convert_to_side_name(boundary_side side){
+    //     if(side == boundary_side::LEFT)
+    //         return "LEFT";
+    //     if(side == boundary_side::RIGHT)
+    //         return "RIGHT";
+    //     if(side == boundary_side::UP)
+    //         return "UP";
+    //     if(side == boundary_side::DOWN)
+    //         return "DOWN";
+
+    //     return "";
+    // }
 
     /// @brief indexes of directions
     enum direction
@@ -98,6 +129,47 @@ namespace ugks
         // flow flux
         Eigen::Array4d flux = {};       // mass flux, x and y momentum flux, energy flux
         Eigen::ArrayXXd flux_h, flux_b; // flux of distribution function
+    };
+
+    struct boundary_cell{
+        Eigen::Array4d bound;
+        // std::function<Eigen::Array4d(Eigen::Array4d, double, double)> func; //only for functional boundary
+        boundary_type btype = boundary_type::EMPTY;
+    };
+
+
+    ///@brief structure for init physic values
+    struct physic_val
+    {
+        double gamma;     // number whose value depends on the state of the gas
+        double omega;     // temperature dependence index in HS/VHS/VSS model
+        double Pr;        // Prandtl number
+        double mu_ref;    // viscosity coefficient in reference state
+        unsigned int DOF; // internal degree of freedom
+    };
+
+    ///@brief structure for getting simulations parameters
+    struct simulation_val
+    {
+        // time parameters
+        double dt;     // global time step
+        double sitime; // current simulation time
+        unsigned int cnt_iter;  // iteration
+
+        // scheme parameters
+        Eigen::Array4d res; // residual
+        double CFL;         // global CFL number
+        precision siorder;  // simulation order
+
+        friend std::ostream& operator<<(std::ostream& os, const simulation_val& sim) {
+            os << "simulation values:\n" << 
+                "iter: "<< sim.cnt_iter <<
+                " sitime: "<<sim.sitime << 
+                " dt: "<< sim.dt << std::endl <<
+                "residual: "<< sim.res.transpose();
+            return os;
+        }
+
     };
 
 }

@@ -6,6 +6,7 @@
 #include <fstream>
 #include <exception>
 #include <vector>
+#include <map>
 
 #include <Eigen/Dense>
 #include <argparse/argparse.hpp>
@@ -44,12 +45,51 @@ void init_arguments_parser(argparse::ArgumentParser &arguments)
         .scan<'d', int>();
     
     arguments.add_argument("-t", "--threads-count")
-        .default_value(0)
+        .default_value(1)
         .help("How many threads will be launched")
         .scan<'d', int>();
     
+    arguments.add_argument("-p", "--precision")
+        .default_value(1e-5)
+        .help("Residual of the model")
+        .scan<'g', double>();
+    
 
 }
+
+auto read_coords = [](std::string file_name) -> std::tuple<Eigen::ArrayXd, Eigen::ArrayXd>
+
+{
+    std::ifstream file(file_name);
+    // Check if the file is open
+    if (!file.is_open()) {
+        std::cerr << "Error opening the file." << std::endl;
+        return {{},{}};
+    }
+
+    std::string line;
+    double num;
+    std::vector<double> x, y;
+    
+    std::getline(file, line);
+    {
+        std::istringstream iss(line);
+        while (iss >> num)
+            x.push_back(num);
+    }
+    std::getline(file, line);
+    {
+        std::istringstream iss(line);
+        while (iss >> num)
+            y.push_back(num);
+    }
+
+    assert(x.size() == y.size());
+    Eigen::ArrayXd xw(x.size()), yw(y.size());
+    std::copy(x.begin(), x.end(), xw.begin());
+    std::copy(y.begin(), y.end(), yw.begin());
+    return {xw, yw};
+};
 
 
 ugks::solver create_solver(const json& init_params)
@@ -73,20 +113,33 @@ ugks::solver create_solver(const json& init_params)
 
         // geometry
         auto gsize = init_params["Geometry"]["size"];
-        auto RawUpVal = init_params["Geometry"]["UpWall"];
-        auto RawDownVal = init_params["Geometry"]["DownWall"];
-        std::vector<ugks::point> upWall, downWall;
-        auto insert_point = [](auto x) -> ugks::point
-        { return {x[0], x[1]};};
-
-        std::transform(RawUpVal.cbegin(), RawUpVal.cend(),
-                       std::back_inserter(upWall), insert_point);
-
-        std::transform(RawDownVal.cbegin(), RawDownVal.cend(),
-                       std::back_inserter(downWall), insert_point);
 
         ugks::solver ugks_solver(gsize[0], gsize[1], phys, prec, CFL);
-        ugks_solver.set_geometry(upWall, downWall);
+        
+        try
+        {   //TODO: fix at
+            init_params["Geometry"].at("load");
+            std::string file_name_up = init_params["Geometry"]["UpWall"];
+            auto [xup, yup] = read_coords(file_name_up);
+            std::string file_name_down = init_params["Geometry"]["DownWall"];
+            auto [xdown, ydown] = read_coords(file_name_down);
+            ugks_solver.fill_mesh(xup, yup, xdown, ydown);
+        }    
+        catch (json::out_of_range &e)
+        {
+            auto RawUpVal = init_params["Geometry"]["UpWall"];
+            auto RawDownVal = init_params["Geometry"]["DownWall"];
+            auto insert_point = [](auto x) -> ugks::point
+            { return {x[0], x[1]};};
+            
+            std::vector<ugks::point> upWall, downWall;
+            std::transform(RawUpVal.cbegin(), RawUpVal.cend(),
+                           std::back_inserter(upWall), insert_point);
+            std::transform(RawDownVal.cbegin(), RawDownVal.cend(),
+                           std::back_inserter(downWall), insert_point);
+
+            ugks_solver.set_geometry(upWall, downWall);
+        }
 
         // velocity space
         // set velocity space param
@@ -124,37 +177,104 @@ ugks::solver create_solver(const json& init_params)
         ugks_solver.set_velocity_space(param, integ);
 
         // boundary
-        auto boundary_init = [&init_params](const std::string& side) -> std::tuple<ugks::boundary_type, Eigen::Array4d>
+        using Boundary = Eigen::Array<ugks::boundary_cell, -1, 1>;
+        auto boundary_init = [&init_params, &ugks_solver](const std::string& side, size_t size) -> Boundary
         {
-            std::string stype = init_params["Boundaries"][side]["Type"];
-            ugks::boundary_type type;
-            if(stype == "WALL")
-                type = ugks::boundary_type::WALL;
-            else if(stype == "INPUT")
-                type = ugks::boundary_type::INPUT;
-            else if(stype == "MIRROR")
-                type = ugks::boundary_type::MIRROR;
-            else if(stype == "OUTPUT")
-                type = ugks::boundary_type::OUTPUT;
-            else
-                throw std::invalid_argument("wrong boundary type: " + stype);
-            
+            using Boundary = Eigen::Array<ugks::boundary_cell, -1, 1>;
+            using Range = std::pair<size_t, size_t>; 
+            Boundary bound; bound.resize(size);
 
-            auto in_bound = init_params["Boundaries"][side]["Init"]; 
-            Eigen::Array4d bound;
-            std::copy(in_bound.begin(), in_bound.end(), bound.begin());
-            return {type, bound};
+            std::string stype = init_params["Boundaries"][side]["Type"];
+            
+            auto chose_type = [](std::string stype){
+                ugks::boundary_type type;
+                if(stype == "WALL")
+                    type = ugks::boundary_type::WALL;
+                else if(stype == "INPUT")
+                    type = ugks::boundary_type::INPUT;
+                else if(stype == "MIRROR")
+                    type = ugks::boundary_type::MIRROR;
+                else if(stype == "OUTPUT")
+                    type = ugks::boundary_type::OUTPUT;
+                else if(stype == "GLUE")
+                    type = ugks::boundary_type::GLUE;
+                else if(stype == "ROTATION")
+                    type = ugks::boundary_type::ROTATION;
+                else
+                    throw std::invalid_argument("wrong boundary type: " + stype);
+                return type;
+            };
+
+            auto set_boundary = [&bound](Range range, const ugks::boundary_cell& cell){
+                std::for_each(bound.begin() + range.first, bound.begin() + range.second, [&cell](auto& val){
+                    val = cell;
+                });
+            };
+
+            auto get_boundary_init = [](const json& init){
+                Eigen::Array4d bound_el;
+                std::copy(init.begin(), init.end(), bound_el.begin());
+                return bound_el;   
+            };
+
+            auto set_rotation_boundary = [&bound, &ugks_solver, &get_boundary_init]
+            (const json& boundary, ugks::boundary_side side, Range range){
+                    auto init_val = get_boundary_init(boundary["Init"]);
+                    double w = boundary["w"];
+                    double R = boundary["R"];
+                    int sign = boundary["direction"] == "back" ? -1 : 1;
+                    auto wall = ugks_solver.get_boundary_points(side, range);
+                    std::cout<<"boundary side: "<<  static_cast<std::underlying_type<ugks::boundary_side>::type>(side) << std::endl;
+                    for(int i = 0, j = range.first; j < range.second; ++i, ++j){
+                        double sqr = sqrt(
+                            (wall[i+1].x - wall[i].x)*(wall[i+1].x - wall[i].x) +
+                            (wall[i+1].y - wall[i].y)*(wall[i+1].y - wall[i].y));
+                        
+                        double cosb = sign*(wall[i+1].x - wall[i].x)/sqr;
+                        double sinb = sign*(wall[i+1].y - wall[i].y)/sqr;
+                        init_val[1] = cosb*w*R;
+                        init_val[2] = sinb*w*R;
+                        bound[j] = {init_val, ugks::boundary_type::WALL};
+                        std::cout<< i <<", "<< j << ") sqr: "<< sqr <<" cosb: " << cosb <<" sinb: "<< sinb << std::endl;
+                    } 
+            };
+
+
+            if(stype == "MIXED"){
+                for(auto& fragment : init_params["Boundaries"][side]["fragments"]){
+                    Range range = fragment["range"];
+                    auto type = chose_type(fragment["Type"]);
+                    if(type == ugks::boundary_type::ROTATION){
+                        set_rotation_boundary(fragment, ugks::convert_to_side(side), range);
+                    }else{
+                        auto init_val = get_boundary_init(fragment["Init"]);
+                        set_boundary(range, {init_val, type});
+                    }
+                }
+                return bound;
+            }
+
+            auto type = chose_type(stype);
+            if(type == ugks::boundary_type::ROTATION){
+                set_rotation_boundary(init_params["Boundaries"][side], ugks::convert_to_side(side), {0, size});
+                return bound;
+            }
+            
+            auto init_val = get_boundary_init(init_params["Boundaries"][side]["Init"]); 
+            set_boundary({0, size}, {init_val, type});
+            
+            return bound;
         };
 
-        auto [ltype, lbound] = boundary_init("LEFT");
-        auto [rtype, rbound] = boundary_init("RIGHT");
-        auto [utype, ubound] = boundary_init("UP");
-        auto [dtype, dbound] = boundary_init("DOWN");
+        auto lbound = boundary_init("LEFT", gsize[0]);
+        auto rbound = boundary_init("RIGHT", gsize[0]);
+        auto ubound = boundary_init("UP", gsize[1]);
+        auto dbound = boundary_init("DOWN", gsize[1]);
 
-        ugks_solver.set_boundary(ugks::boundary_side::LEFT,  lbound, ltype);
-        ugks_solver.set_boundary(ugks::boundary_side::RIGHT, rbound, rtype);
-        ugks_solver.set_boundary(ugks::boundary_side::UP,    ubound, utype);
-        ugks_solver.set_boundary(ugks::boundary_side::DOWN,  dbound, dtype);
+        ugks_solver.set_boundary(ugks::boundary_side::LEFT,  lbound);
+        ugks_solver.set_boundary(ugks::boundary_side::RIGHT, rbound);
+        ugks_solver.set_boundary(ugks::boundary_side::UP,    ubound);
+        ugks_solver.set_boundary(ugks::boundary_side::DOWN,  dbound);
 
         // initial condition (density,u-velocity,v-velocity,lambda=1/temperature)
         try
@@ -176,6 +296,44 @@ ugks::solver create_solver(const json& init_params)
 }
 
 
+ugks::block_solver create_block_solver(const json& init_params)
+{   
+
+        std::map<int, ugks::solver* > solver_blocks;
+        std::multimap<int, std::pair<ugks::boundary_side ,json>> association;
+        auto make_association = [&association](const json& Boundary, int id, std::string side){
+            if(Boundary[side]["Type"] == "MIXED"){
+                for(auto & fragment : Boundary[side]["fragments"]){
+                    if(fragment["Type"] == "GLUE")
+                        association.insert({id, {ugks::convert_to_side(side), fragment}});
+                }
+            }
+            else if(Boundary[side]["Type"] == "GLUE")
+                association.insert({id, {ugks::convert_to_side(side), Boundary[side]}});
+        };
+
+        for(const auto & param: init_params["blocks"]){
+            int id = param["id"];
+            ugks::solver* solver = new ugks::solver(create_solver(param));
+            solver_blocks[id] = solver;
+            make_association(param["Boundaries"], id, "UP");
+            make_association(param["Boundaries"], id, "DOWN");
+            make_association(param["Boundaries"], id, "LEFT");
+            make_association(param["Boundaries"], id, "RIGHT");            
+        }
+
+        ugks::block_solver block_solver = ugks::block_solver(solver_blocks);
+        
+        for(auto && [id, solver] : solver_blocks)
+            for(auto rule = association.lower_bound(id), last_rule = association.upper_bound(id); rule != last_rule; rule++)
+                block_solver.make_association(id, rule->second);
+
+        return block_solver;
+}
+
+
+
+
 int main(int argc, char *argv[]){
 
     init_arguments_parser(arguments);
@@ -185,24 +343,42 @@ int main(int argc, char *argv[]){
         arguments.parse_args(argc, argv);
         
         //create solver
+        // std::cout << arguments.get<json>("--init").size() << std::endl;
         json init_params = arguments.get<json>("--init")[0];
-        auto ugks_solver = create_solver(init_params);
+        //TODO: temprorary 
+        ugks::block_solver ugks_solver_block;
+        ugks::solver ugks_solver;
+        bool is_block_solver = false; 
+        
+        try{
+            init_params.at("blocks");
+            ugks_solver_block = create_block_solver(init_params);
+            is_block_solver = true;
+        }
+        catch(const json::out_of_range& e){
+            std::cout << "programm with one block " << e.what() <<std::endl;
+        }
 
+        //TODO: temprorary 
+        if(!is_block_solver)
+            ugks_solver = create_solver(init_params);
+        
         auto output_file = arguments.get<std::string>("--output");
         auto output_rate = arguments.get<int>("--output-rate");
         auto sim_info_rate = arguments.get<int>("--sim-info-rate");
 
-        int threads_count = init_params["Calculation"]["ThreadsCount"];
-        double residual = init_params["Calculation"]["residual"];
-        if(arguments.get<int>("--threads-count") > 0)
-            threads_count = arguments.get<int>("--threads-count");
-        
-        std::cout<<"count threads: "<<threads_count<<std::endl;
-        omp_set_num_threads(threads_count);
+        int threads_count = arguments.get<int>("--threads-count");
+        double residual = arguments.get<double>("--precision");
 
+        std::cout<<"count threads: "<<threads_count<<std::endl;
+        std::cout<<"residual: "<<residual<<std::endl;
+
+        omp_set_num_threads(threads_count);
+        
         while (true)
         {
-            auto sim = ugks_solver.solve();
+            // TODO: temprorary decision
+            auto sim = is_block_solver ? ugks_solver_block.solve() : ugks_solver.solve();
 
             auto max_res = std::max_element(sim.res.begin(), sim.res.end());
 
@@ -228,11 +404,18 @@ int main(int argc, char *argv[]){
                 std::string temp_name = output_file;
                 temp_name.insert(temp_name.rfind('.'), "_temp");
                 std::cout <<"write result into "<<temp_name<<std::endl;
-                ugks_solver.write_results(temp_name);
+                if(is_block_solver)
+                    ugks_solver_block.write_results(temp_name);
+                else
+                    ugks_solver.write_results(temp_name);
             }
         }
-
-        ugks_solver.write_results(output_file);
+        std::cout<<"finish the calculations..."<<std::endl;
+        std::cout<<"write final resulr into: "<< output_file << std::endl;
+        if(is_block_solver)
+            ugks_solver_block.write_results(output_file);
+        else
+            ugks_solver.write_mesh(output_file);
 
     }
     catch (const std::runtime_error &err)

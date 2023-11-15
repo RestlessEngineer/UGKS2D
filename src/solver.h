@@ -8,6 +8,9 @@
     #include <iostream>
 #endif
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 //*******************************************************
 // coordinate system                                    *
 //                                                      *
@@ -30,44 +33,11 @@
 
 namespace ugks
 {
-
-    ///@brief structure for init physic values
-    struct physic_val
-    {
-        double gamma;     // number whose value depends on the state of the gas
-        double omega;     // temperature dependence index in HS/VHS/VSS model
-        double Pr;        // Prandtl number
-        double mu_ref;    // viscosity coefficient in reference state
-        unsigned int DOF; // internal degree of freedom
-    };
-
-    ///@brief structure for getting simulations parameters
-    struct simulation_val
-    {
-        // time parameters
-        double dt;     // global time step
-        double sitime; // current simulation time
-        int cnt_iter;  // iteration
-
-        // scheme parameters
-        Eigen::Array4d res; // residual
-        double CFL;         // global CFL number
-        precision siorder;  // simulation order
-
-        friend std::ostream& operator<<(std::ostream& os, const simulation_val& sim) {
-            os << "simulation values:\n" << 
-                "iter: "<< sim.cnt_iter <<
-                " sitime: "<<sim.sitime << 
-                " dt: "<< sim.dt << std::endl <<
-                "residual: "<< sim.res.transpose();
-            return os;
-        }
-
-    };
+    class block_solver;
 
     class solver
     {
-
+        friend class block_solver;
         size_t ysize = 0, xsize = 0; // index range in i and j direction
 
         //* physics constants
@@ -82,11 +52,8 @@ namespace ugks
         precision siorder = precision::SECOND_ORDER; // simulation order
         
         double CFL = 0.8;   // global CFL number
-        Eigen::Array4d res; // simulation residual
-
-        double dt = 1e-20;  // global time step
         double sitime = 0.; // current simulation time
-        int cnt_iter = 0;   // count of iterations
+        unsigned int cnt_iter = 0;   // count of iterations
 
 
         //* fluid space
@@ -97,13 +64,10 @@ namespace ugks
         Eigen::Array<cell, -1, -1> core;                   // cell centers
         Eigen::Array<cell_interface, -1, -1> vface, hface; // vertical and horizontal interfaces
 
-        Eigen::Array4d bc_L, bc_R, bc_U, bc_D; // boundary conditions at LEFT, RIGHT, UP and DOWN boundary
-        
-        //boundary types WALL, INPUT, OUTPUT, MIRROR and others
-        boundary_type bc_typeL = boundary_type::WALL;
-        boundary_type bc_typeR = boundary_type::WALL;
-        boundary_type bc_typeU = boundary_type::WALL;
-        boundary_type bc_typeD = boundary_type::WALL; 
+        using Boundary = Eigen::Array<boundary_cell, -1, 1>; 
+
+        Boundary lbound, rbound, ubound, dbound; // boundary at LEFT, RIGHT, UP and DOWN boundary    
+        Eigen::Array<cell*, -1, 1> lcell, rcell, ucell, dcell; // for GLUING cells
 
         //* velocity space
         size_t usize = 0, vsize = 0;    // number of velocity points for u and v
@@ -114,6 +78,8 @@ namespace ugks
         Eigen::ArrayXXd weight;         // weight at velocity u_k and v_l
 
     public:
+
+        solver() = default;
         /// @brief constructor ugks solver
         /// @param rows count cells along Y
         /// @param cols count cells along X
@@ -157,6 +123,11 @@ namespace ugks
         /// @param type boundary type  WALL, INPUT, OUTPUT, MIRROR and others
         void set_boundary(boundary_side side, const Eigen::Array4d bound, boundary_type type = boundary_type::WALL);
 
+        /// @brief set boundary condition
+        /// @param side what is the boundary (LEFT, RIGHT, UP, DOWN)
+        /// @param bound array with boundary values
+        void set_boundary(boundary_side side, const Boundary& bound);
+
         /// @brief initialize the mesh
         /// @param xlength,ylength :domain length in x and y direction
         void set_geometry(const double &xlength, const double &ylength);
@@ -185,49 +156,7 @@ namespace ugks
 
         /// @brief solving for one time step
         /// @return simulation parameters
-        inline simulation_val solve()
-        {
-
-            #ifdef DO_PROFILIZE
-                double itime, ftime;
-                itime = omp_get_wtime();
-            #endif
-
-            timestep();         // calculate time step
-            
-            #ifdef DO_PROFILIZE
-                ftime = omp_get_wtime();
-                std::cout<<"perform time: timestep "<< ftime - itime <<" ";
-                itime = omp_get_wtime();
-            #endif
-
-            interpolation();    // calculate the slope of distribution function
-
-            #ifdef DO_PROFILIZE
-                ftime = omp_get_wtime();
-                std::cout<<"interpolation "<< ftime - itime <<" ";
-                itime = omp_get_wtime();     
-            #endif
-
-            flux_calculation(); // calculate flux across the interfaces
-            #ifdef DO_PROFILIZE
-                ftime = omp_get_wtime();
-                std::cout<<"flux calculation "<< ftime - itime <<" ";
-                itime = omp_get_wtime();     
-            #endif
-
-            update();           // update cell averaged value
-
-            #ifdef DO_PROFILIZE
-                ftime = omp_get_wtime();
-                std::cout<<"update "<< ftime - itime <<"\n";
-            #endif
-
-            cnt_iter++;
-            sitime += dt;
-
-            return {dt, sitime, cnt_iter, res, CFL, siorder};
-        }
+        simulation_val solve();
 
         /// @brief writting current results
         void write_results(const std::string& file_name = "cavity.dat") const;
@@ -239,7 +168,29 @@ namespace ugks
         /// @brief filling inner values from file
         /// @param file_name file with results
         void init_inner_values_by_result(std::string file_name);
+        
+        /// @brief return neighbors from frontier values
+        /// @param side with side
+        /// @param range range for neighbors 
+        /// @return vector pointers to frontier values from side  
+        std::vector<cell* > get_frontier(boundary_side side, std::pair<size_t, size_t> range);
 
+        /// @brief associate frontier neighbors
+        /// @param neighbors frontier neighbors 
+        /// @param side wich side
+        /// @param range range for association
+        void associate_neighbors(const std::vector<cell* > & neighbors, boundary_side side, std::pair<size_t, size_t> range);
+        
+        //TODO: only for rotation
+        std::vector<point> get_boundary_points(boundary_side side, std::pair<size_t, size_t> range);
+
+        /// @brief filling of mesh
+        /// @param xupw x cords of up wall
+        /// @param yupw y cords of up wall
+        /// @param xdownw x cords of down wall 
+        /// @param ydownw y cords of down wall
+        void fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw);
+    
     private:
         
         /// @brief allocate all inner structures and arrays
@@ -254,16 +205,16 @@ namespace ugks
         void allocation_velocity_space();
 
         /// @brief calculation of the time step
-        void timestep();
+        double timestep();
 
         /// @brief calculation of the slope of distribution function
         void interpolation();
 
         /// @brief calculate the flux across the interfaces
-        void flux_calculation();
+        void flux_calculation(double dt);
 
         /// @brief updating of the cell averaged values
-        void update();
+        std::tuple<Eigen::Array4d, Eigen::Array4d> update(double dt);
 
         /// @brief calculate dx dy slopes by solving linear least square system
         /// @param core central cell 
@@ -274,31 +225,31 @@ namespace ugks
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
         /// @param btype boundary type (WALL, INPUT, OUTPUT, MIRROR)
-        void calc_flux_boundary(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, boundary_type btype, int side);
+        void calc_flux_boundary(double dt, const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary interface
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_wall(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_wall(double dt, const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary for input conditions
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_input(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_input(double dt, const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary for output
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_output(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_output(double dt, const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
         
         /// @brief calculate flux of boundary for axisymmetric one
         /// @param bc   boundary condition
         /// @param face the boundary interface
         /// @param cell cell next to the boundary interface
-        void calc_flux_boundary_mirror(const Eigen::Array4d &bc, cell_interface &face, const cell& cell, int side);
+        void calc_flux_boundary_mirror(double dt, const boundary_cell& bc, cell_interface &face, const cell& cell, int side);
 
 
         /// @brief calculate micro slope of Maxwellian distribution
@@ -340,15 +291,29 @@ namespace ugks
         /// @param face   the target interface
         /// @param cell_R cell right to the target interface
         /// @param idx    index indicating i or j direction
-        void calc_flux(const cell &cell_L, cell_interface &face, const cell &cell_R, direction dir);
+        void calc_flux(double dt, const cell &cell_L, cell_interface &face, const cell &cell_R, direction dir);
 
-        /// @brief filling of mesh
-        /// @param xupw x cords of up wall
-        /// @param yupw y cords of up wall
-        /// @param xdownw x cords of down wall 
-        /// @param ydownw y cords of down wall
-        void fill_mesh(const Eigen::ArrayXd& xupw, const Eigen::ArrayXd& yupw, const Eigen::ArrayXd& xdownw, const Eigen::ArrayXd& ydownw);
     };
+
+    class block_solver
+    {
+        size_t cnt_iter = 0;
+        double sitime = 0.;
+        std::map<int, ugks::solver* > m_solver_blocks;
+        double CFL = 0.8;
+        ugks::precision siorder;
+
+        public:
+        block_solver() = default;
+        block_solver(std::map<int, ugks::solver* > solver_blocks): m_solver_blocks(solver_blocks){}
+
+        void make_association(int id, const std::pair<ugks::boundary_side, json>& association_rules);
+        simulation_val solve();
+
+        void write_results(const std::string& file_name = "cavity.dat") const;
+
+    };
+
 }
 
 #endif
