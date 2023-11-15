@@ -1,0 +1,204 @@
+{
+    "blocks":[{
+          "id": 0,
+          "Calculation": {
+            "residual": 1.0e-5,
+            "CFL": 0.8,
+            "Precision": 2,
+            "ThreadsCount": 4
+          },
+          "Physic":{
+            "Knudsen": 0.1,
+            "AlphaRef": 1.0,
+            "OmegaRef": 0.5,
+            "DOF": 1,
+            "Prantl": 0.666666666666667,
+            "Omega": 0.81
+          },
+  
+          "Geometry":{
+            "size": [50, 40],
+            "load": true,
+            "UpWall": "sector_0_up.dat",
+            "DownWall": "sector_0_down.dat"
+        },
+          "VelocitySpace":{
+            "size": [25, 25],
+            "XSpaceRange": [-3.0, 3.0],
+            "YSpaceRange": [-3.0, 3.0],
+            "IntegrationMethod": "NEWTON_COTES"
+          },
+          "Boundaries":{
+            "UP": {
+              "Type": "WALL",
+              "Init": [1.0, 0.0, 0.0, 1.0]
+            },
+            "LEFT": {
+              "Type": "WALL",
+              "Init": [1.0, 0.0, 0.0, 1.0]
+            },
+            "RIGHT": {
+              "Type": "GLUE",
+              "Gluing":[{
+                "range": [0,50],
+                "to": {"id": 1, "range": [0, 50], "side": "LEFT"}
+              }],
+              "Init": [1.0, 0.0, 0.0, 1.0]
+            }, 
+            "DOWN": {
+              "Type": "MIXED",
+              "fragments":[{
+                "Type": "GLUE",
+                "range": [0,5],
+                "Init": [1.0, 0.0, 0.0, 1.0],
+                "Gluing":[{
+                    "range": [0,5],
+                    "to": {"id": 2,  "range": [0, 5], "side": "LEFT"}
+                }]},
+                {
+                "Type": "ROTATION",
+                "w": 0.15,
+                "R": 5.4,
+                "direction": "forward",
+                "range": [5,40],
+                "Init": [1.0, 0.0, 0.0, 1.0]
+                }]             
+            }  
+          },
+          "FlowField": [1.0, 0.0, 0.0, 1.0]
+      },
+      {
+      "id": 1,
+      "Calculation": {
+        "residual": 1.0e-5,
+        "CFL": 0.8,
+        "Precision": 2,
+        "ThreadsCount": 4
+      },
+      "Physic":{
+        "Knudsen": 0.1,
+        "AlphaRef": 1.0,
+        "OmegaRef": 0.5,
+        "DOF": 1,
+        "Prantl": 0.666666666666667,
+        "Omega": 0.81
+      },
+      "Geometry":{
+            "size": [50, 40],
+            "load": true,
+            "UpWall": "sector_1_up.dat",
+            "DownWall": "sector_1_down.dat"
+          },
+          "VelocitySpace":{
+            "size": [25, 25],
+            "XSpaceRange": [-3.0, 3.0],
+            "YSpaceRange": [-3.0, 3.0],
+            "IntegrationMethod": "NEWTON_COTES"
+          },
+          "Boundaries":{
+            "UP": {
+              "Type": "WALL",
+              "Init": [1.0, 0.0, 0.0, 1.0]
+            },
+            "LEFT": {
+              "Type": "GLUE",
+              "Gluing":[{
+                "range": [0,50],
+                "to": {"id": 0, "range": [0, 50], "side": "RIGHT"}
+              }],
+              "Init": [1.0, 0.0, 0.0, 1.0]
+            },
+            "RIGHT": {
+              "Type": "WALL",
+              "Init": [1.0, 0.0, 0.0, 1.0]
+            }, 
+            "DOWN": {
+            "Type": "MIXED",
+            "fragments":[{
+                "Type": "GLUE",
+                "range": [35,40],
+                "Init": [1.0, 0.0, 0.0, 1.0],
+                "Gluing":[{
+                    "range": [35,40],
+                    "to": {"id": 2,  "range": [0, 5], "side": "RIGHT"}
+                }]},
+                {
+                "Type": "ROTATION",
+                "range": [0,35],
+                "w": 0.15,
+                "R": 5.4,
+                "direction": "forward",
+                "Init": [1.0, 0.0, 0.0, 1.0]
+                }]  
+            }  
+          },
+          "FlowField": [1.0, 0.0, 0.0, 1.0]
+      },
+      {
+        "id": 2,
+        "Calculation": {
+          "residual": 1.0e-5,
+          "CFL": 0.8,
+          "Precision": 2,
+          "ThreadsCount": 4
+        },
+        "Physic":{
+          "Knudsen": 0.1,
+          "AlphaRef": 1.0,
+          "OmegaRef": 0.5,
+          "DOF": 1,
+          "Prantl": 0.666666666666667,
+          "Omega": 0.81
+        },
+        "Geometry":{
+              "size": [5, 70],
+              "load": true,
+              "UpWall": "sector_2_up.dat",
+              "DownWall": "sector_2_down.dat"
+            },
+            "VelocitySpace":{
+              "size": [25, 25],
+              "XSpaceRange": [-3.0, 3.0],
+              "YSpaceRange": [-3.0, 3.0],
+              "IntegrationMethod": "NEWTON_COTES"
+            },
+            "Boundaries":{
+              "UP": {
+                "Type": "ROTATION",
+                "w": 0.15,
+                "R": 5.4,
+                "direction": "back",
+                "Init": [1.0, 0.0, 0.0, 1.0]
+              },
+              "LEFT": {
+                "Type": "GLUE",
+                "Gluing":[
+                    {
+                      "range": [0, 5],
+                      "to": {"id": 0, "range": [0, 5], "side": "DOWN"}
+                    }
+                  ],
+                  
+                "Init": [1.0, 0.0, 0.0, 1.0]
+              },
+              "RIGHT": {
+                "Type": "GLUE",
+                "Gluing":[
+                    {
+                      "range": [0, 5],
+                      "to": {"id": 1, "range": [35, 40], "side": "DOWN"}
+                    }
+                  ],
+                  
+                "Init": [1.0, 0.0, 0.0, 1.0]
+              }, 
+              "DOWN": {
+                "Type": "WALL",
+                "Init": [1.0, 0.0, 0.0, 1.0]
+              }  
+            },
+            "FlowField": [1.0, 0.0, 0.0, 1.0]
+        }
+      ]
+  }
+  

@@ -4,11 +4,13 @@ project(UGKS2D)
 
 set(SOURCES src/main.cpp 
             src/tools.cpp 
-            src/solver.cpp)
+            src/solver.cpp
+            src/block_solver.cpp)
 
 set(HEADERS  src/global.h
 			 src/tools.h
-             src/solver.h)
+             src/solver.h
+             src/block_solver.h)
 
 find_package(Eigen3 REQUIRED)
 find_package(OpenMP REQUIRED)
